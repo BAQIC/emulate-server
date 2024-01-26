@@ -4,14 +4,8 @@ use axum::{
     http::{header, StatusCode},
     routing, Json, Router,
 };
-use serde::Serialize;
+use qasmsim;
 use serde_json::{json, Value};
-extern crate qasmsim;
-
-#[derive(Serialize, Debug)]
-pub struct EmulateResponse {
-    result: String,
-}
 
 pub async fn root() -> (StatusCode, Json<Value>) {
     let source = "
