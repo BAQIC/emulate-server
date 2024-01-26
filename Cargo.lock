@@ -1124,6 +1124,7 @@ dependencies = [
  "axum",
  "qasmsim",
  "serde",
+ "serde_json",
  "tokio",
 ]
 

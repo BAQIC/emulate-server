@@ -1,18 +1,19 @@
 use axum::{
-    body, debug_handler,
+    body,
     extract::Request,
     http::{header, StatusCode},
     routing, Json, Router,
 };
 use serde::Serialize;
+use serde_json::{json, Value};
 extern crate qasmsim;
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 pub struct EmulateResponse {
     result: String,
 }
 
-pub async fn root() -> String {
+pub async fn root() -> (StatusCode, Json<Value>) {
     let source = "
     OPENQASM 2.0;
     include \"qelib1.inc\";
@@ -30,34 +31,32 @@ pub async fn root() -> String {
     };
 
     match qasmsim::run(source, options.shots) {
-        Ok(result) => {
-            return qasmsim::print_result(&result, &options);
-        }
-        Err(err) => {
-            return format!("Error: {}", err);
-        }
+        Ok(result) => (
+            StatusCode::OK,
+            Json(serde_json::from_str::<Value>(&qasmsim::print_result(&result, &options)).unwrap()),
+        ),
+        Err(err) => (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"Error": format!("{}", err)})),
+        ),
     }
 }
 
-pub async fn consume_body(body: body::Body) -> (StatusCode, Json<EmulateResponse>) {
+pub async fn consume_body(body: body::Body) -> (StatusCode, Json<Value>) {
     let body_str = match body::to_bytes(body, usize::MAX).await {
         Ok(bytes) => match String::from_utf8(bytes.to_vec()) {
             Ok(string) => string,
             Err(err) => {
                 return (
                     StatusCode::BAD_REQUEST,
-                    Json(EmulateResponse {
-                        result: format!("Error: {}", err),
-                    }),
+                    Json(json!({"Error": format!("{}", err)})),
                 )
             }
         },
         Err(err) => {
             return (
                 StatusCode::BAD_REQUEST,
-                Json(EmulateResponse {
-                    result: format!("Error: {}", err),
-                }),
+                Json(json!({"Error": format!("{}", err)})),
             )
         }
     };
@@ -69,9 +68,7 @@ pub async fn consume_body(body: body::Body) -> (StatusCode, Json<EmulateResponse
             Err(err) => {
                 return (
                     StatusCode::BAD_REQUEST,
-                    Json(EmulateResponse {
-                        result: format!("Error: {}", err),
-                    }),
+                    Json(json!({"Error": format!("{}", err)})),
                 )
             }
         },
@@ -81,9 +78,8 @@ pub async fn consume_body(body: body::Body) -> (StatusCode, Json<EmulateResponse
             _ => {
                 return (
                     StatusCode::BAD_REQUEST,
-                    Json(EmulateResponse {
-                        result: "Error: format not specified / not support".to_string(),
-                    }),
+                    Json(json!(
+                        {"Error": "format not specified / not support"})),
                 )
             }
         },
@@ -93,20 +89,16 @@ pub async fn consume_body(body: body::Body) -> (StatusCode, Json<EmulateResponse
     match qasmsim::run(parts[0], options.shots) {
         Ok(result) => (
             StatusCode::OK,
-            Json(EmulateResponse {
-                result: qasmsim::print_result(&result, &options),
-            }),
+            Json(serde_json::from_str::<Value>(&qasmsim::print_result(&result, &options)).unwrap()),
         ),
         Err(err) => (
             StatusCode::BAD_REQUEST,
-            Json(EmulateResponse {
-                result: format!("Error: {}", err),
-            }),
+            Json(json!({"Error": format!("{}", err)})),
         ),
     }
 }
 
-pub async fn emulate(request: Request) -> (StatusCode, Json<EmulateResponse>) {
+pub async fn emulate(request: Request) -> (StatusCode, Json<Value>) {
     // curl -v -H "Content-Type: x-www-form-urlencoded" -X POST 10.31.4.69:3000/emulate -d @bell.qasm -d shots=1000 -d format=json
     match request.headers().get(header::CONTENT_TYPE) {
         Some(content_type) if content_type == "x-www-form-urlencoded" => {
@@ -114,9 +106,7 @@ pub async fn emulate(request: Request) -> (StatusCode, Json<EmulateResponse>) {
         }
         _ => (
             StatusCode::BAD_REQUEST,
-            Json(EmulateResponse {
-                result: "Error: content type not specified / not support".to_string(),
-            }),
+            Json(json!({"Error": "content type not specified / not support"})),
         ),
     }
 }
