@@ -11,3 +11,4 @@ tokio = { version = "1.35.1", features = ["full"] }
 serde = { version = "1.0.195", features = ["derive"] }
 serde_json = "1.0.111"
 qasmsim = { git = "https://github.com/lucky9-cyou/qasmsim.git" }
+urlencoding = "2.1.3"
