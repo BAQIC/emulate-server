@@ -5,11 +5,13 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [workspace]
-members = [ "entity",
-    "service"
+members = [
+    "service",
+    "migration"
 ]
 
 [dependencies]
+migration = { path = "migration" } 
 axum = {version = "0.7.4", features = ["macros"]}
 tokio = { version = "1.35.1", features = ["full"] }
 serde = { version = "1.0.195", features = ["derive"] }
@@ -17,3 +19,5 @@ serde_json = "1.0.111"
 qasmsim = { git = "https://github.com/lucky9-cyou/qasmsim.git" }
 rusqlite = { version = "0.30.0", features = ["bundled"] }
 service = { path = "service" }
+dotenv = "0.15.0"
+sea-orm = {version = "0.12.12", features = ["sqlx-postgres", "runtime-tokio-rustls", "macros"]}

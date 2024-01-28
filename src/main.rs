@@ -3,9 +3,13 @@ use axum::{
     http::{header, StatusCode},
     routing, Form, Json, RequestExt, Router,
 };
+use dotenv;
+use migration::{Migrator, MigratorTrait};
 use qasmsim;
+pub use sea_orm::{Database, DbConn};
 use serde::Deserialize;
 use serde_json::{json, Value};
+pub mod entity;
 
 #[derive(Deserialize)]
 struct EmulateMessage {
@@ -84,6 +88,13 @@ pub async fn emulate(request: Request) -> (StatusCode, Json<Value>) {
 
 #[tokio::main]
 async fn main() {
+    dotenv::from_filename(".env").ok();
+    let base_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".to_owned());
+
+    let db: DbConn = Database::connect(base_url).await.unwrap();
+
+    Migrator::fresh(&db).await.unwrap();
+
     let emulator_router = Router::new()
         .route("/", routing::get(root))
         .route("/emulate", routing::post(emulate));

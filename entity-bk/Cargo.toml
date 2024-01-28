@@ -1,0 +1,13 @@
+[package]
+name = "entity"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+sea-orm = "0.12.12"
+serde = "1.0.196"
+qasmsim = { git = "https://github.com/lucky9-cyou/qasmsim.git" }
+serde_json = "1.0.112"
+chrono = "0.4.33"
