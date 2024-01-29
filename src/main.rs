@@ -10,6 +10,7 @@ pub use sea_orm::{Database, DbConn};
 use serde::Deserialize;
 use serde_json::{json, Value};
 pub mod entity;
+pub mod service;
 
 #[derive(Deserialize)]
 struct EmulateMessage {
