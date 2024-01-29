@@ -1,48 +1,17 @@
 use super::content;
 use crate::entity::*;
-use sea_orm::{prelude::Uuid, ActiveValue, DbConn, EntityTrait};
+use sea_orm::{ActiveValue, DbConn, EntityTrait};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct QthreadResource {
-    pub resource_id: Uuid,
-    pub quota: u32,
-    pub current_quota: u32,
-}
+impl content::Resource {}
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Qthread {
-    /// all resources
-    pub resources: Vec<QthreadResource>,
-
-    /// all running tasks
-    pub running_tasks: Vec<Uuid>,
-
-    /// all finished tasks
-    pub finished_tasks: Vec<Uuid>,
-
-    /// all tasks queued
-    pub queued_tasks: Vec<Uuid>,
-}
-
-impl Default for Qthread {
-    fn default() -> Self {
-        Self {
-            resources: vec![],
-            running_tasks: vec![],
-            finished_tasks: vec![],
-            queued_tasks: vec![],
-        }
-    }
-}
-
-impl Qthread {
+impl content::Qthread {
     pub async fn add_resources(
         &mut self,
         resources: &Vec<content::Resource>,
         db: &DbConn,
     ) -> Result<(), sea_orm::prelude::DbErr> {
         resource::Entity::insert_many(resources.iter().map(|r| {
-            self.resources.push(QthreadResource {
+            self.resources.push(content::QthreadResource {
                 resource_id: r.id,
                 quota: r.maximum_agents_num as u32,
                 current_quota: r.current_agents_num as u32,
@@ -51,13 +20,13 @@ impl Qthread {
             resource::ActiveModel {
                 id: ActiveValue::set(r.id),
                 status: ActiveValue::set(match r.status {
-                    content::ResourceStatus::Failed => sea_orm_active_enums::ResourceStatus::Failed,
-                    content::ResourceStatus::Running => {
-                        sea_orm_active_enums::ResourceStatus::Running
+                    content::ResourceStatus::FullyUsed => {
+                        sea_orm_active_enums::ResourceStatus::FullyUsed
                     }
-                    content::ResourceStatus::Succeeded => {
-                        sea_orm_active_enums::ResourceStatus::Succeeded
+                    content::ResourceStatus::PartiallyUsed => {
+                        sea_orm_active_enums::ResourceStatus::PartiallyUsed
                     }
+                    content::ResourceStatus::Paused => sea_orm_active_enums::ResourceStatus::Paused,
                 }),
                 maximum_agents_num: ActiveValue::set(r.maximum_agents_num),
                 current_agents_num: ActiveValue::set(r.current_agents_num),
@@ -75,7 +44,7 @@ impl Qthread {
         resource: &content::Resource,
         db: &DbConn,
     ) -> Result<(), sea_orm::prelude::DbErr> {
-        self.resources.push(QthreadResource {
+        self.resources.push(content::QthreadResource {
             resource_id: resource.id,
             quota: resource.maximum_agents_num as u32,
             current_quota: resource.current_agents_num as u32,
@@ -84,11 +53,13 @@ impl Qthread {
         resource::Entity::insert(resource::ActiveModel {
             id: ActiveValue::set(resource.id),
             status: ActiveValue::set(match resource.status {
-                content::ResourceStatus::Failed => sea_orm_active_enums::ResourceStatus::Failed,
-                content::ResourceStatus::Running => sea_orm_active_enums::ResourceStatus::Running,
-                content::ResourceStatus::Succeeded => {
-                    sea_orm_active_enums::ResourceStatus::Succeeded
+                content::ResourceStatus::FullyUsed => {
+                    sea_orm_active_enums::ResourceStatus::FullyUsed
                 }
+                content::ResourceStatus::PartiallyUsed => {
+                    sea_orm_active_enums::ResourceStatus::PartiallyUsed
+                }
+                content::ResourceStatus::Paused => sea_orm_active_enums::ResourceStatus::Paused,
             }),
             maximum_agents_num: ActiveValue::set(resource.maximum_agents_num),
             current_agents_num: ActiveValue::set(resource.current_agents_num),

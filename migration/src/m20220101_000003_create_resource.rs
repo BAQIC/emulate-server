@@ -21,9 +21,9 @@ pub enum Resource {
 #[derive(DeriveIden, EnumIter)]
 pub enum ResourceStatus {
     Table,
-    Running,
-    Succeeded,
-    Failed,
+    FullyUsed,
+    PartiallyUsed,
+    Paused,
 }
 
 #[async_trait::async_trait]

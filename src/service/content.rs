@@ -1,11 +1,44 @@
 use chrono::NaiveDateTime;
-use sea_orm::prelude::Uuid;
+use uuid::Uuid;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct QthreadResource {
+    pub resource_id: Uuid,
+    pub quota: u32,
+    pub current_quota: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Qthread {
+    /// all resources
+    pub resources: Vec<QthreadResource>,
+
+    /// all running tasks
+    pub running_tasks: Vec<Uuid>,
+
+    /// all finished tasks
+    pub finished_tasks: Vec<Uuid>,
+
+    /// all tasks queued
+    pub queued_tasks: Vec<Uuid>,
+}
+
+impl Default for Qthread {
+    fn default() -> Self {
+        Self {
+            resources: vec![],
+            running_tasks: vec![],
+            finished_tasks: vec![],
+            queued_tasks: vec![],
+        }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ResourceStatus {
-    Failed,
-    Running,
-    Succeeded,
+    FullyUsed,
+    PartiallyUsed,
+    Paused,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -16,6 +49,19 @@ pub struct Resource {
     pub current_agents_num: i32,
     pub agent_ids: Vec<Uuid>,
     pub current_agent_ids: Vec<Uuid>,
+}
+
+impl Default for Resource {
+    fn default() -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            status: ResourceStatus::PartiallyUsed,
+            maximum_agents_num: 0,
+            current_agents_num: 0,
+            agent_ids: vec![],
+            current_agent_ids: vec![],
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
