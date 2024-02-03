@@ -57,7 +57,7 @@ impl Qthread {
         source: &str,
         options: &qasmsim::options::Options,
         db: &DbConn,
-    ) -> Result<Uuid, EmulateError> {
+    ) -> Result<Task, EmulateError> {
         let option = Options::new(&options);
         let mut task = Task::new(source.to_string(), option.id);
 
@@ -70,8 +70,17 @@ impl Qthread {
         if self.resource.idle_agents_num > 0 {
             self.resource.submit_task(&mut task, db).await?;
         } else {
+            self.tasks.push_back(task.get_id());
         }
 
-        Ok(task.get_id())
+        Ok(task)
+    }
+
+    pub async fn run_task(
+        &self,
+        task: &Task,
+        options: &qasmsim::options::Options,
+    ) -> Result<String, EmulateError> {
+        self.resource.run_task(task, options).await
     }
 }
