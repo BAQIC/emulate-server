@@ -1,4 +1,4 @@
-use super::{agent::Agent, agent::AgentStatus, task::Task};
+use super::{agent::Agent, agent::AgentStatus, qthread::EmulateError, task::Task};
 use sea_orm::DbConn;
 use std::collections::HashMap;
 use uuid::Uuid;
@@ -22,24 +22,15 @@ impl Default for Resource {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
-pub enum ResourceError {
-    AgentNotIdle(Uuid),
-    AgentNotExists(Uuid),
-    ResourceDbError(sea_orm::prelude::DbErr),
-}
-
-impl std::fmt::Display for ResourceError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ResourceError::AgentNotIdle(id) => write!(f, "Agent {} is not idle", id),
-            ResourceError::AgentNotExists(id) => write!(f, "Agent {} does not exist", id),
-            ResourceError::ResourceDbError(err) => write!(f, "Resource db error: {}", err),
-        }
-    }
-}
-
 impl Resource {
+    pub fn new(physical_agents_num: u32) -> Self {
+        let mut resource = Resource::default();
+        for _ in 0..physical_agents_num {
+            resource.add_physical_agent(&Uuid::new_v4());
+        }
+        resource
+    }
+
     pub fn add_physical_agent(&mut self, agent_id: &Uuid) {
         self.physical_agents
             .insert(agent_id.clone(), AgentStatus::Idle);
@@ -52,15 +43,15 @@ impl Resource {
         agent_ids.iter().for_each(|id| self.add_physical_agent(id));
     }
 
-    pub fn remove_physical_agent(&mut self, agent_id: &Uuid) -> Result<(), ResourceError> {
+    pub fn remove_physical_agent(&mut self, agent_id: &Uuid) -> Result<(), EmulateError> {
         match self.physical_agents.remove(agent_id) {
             Some(AgentStatus::Idle) => {
                 self.physical_agents_num -= 1;
                 self.idle_agents_num -= 1;
                 Ok(())
             }
-            Some(_) => Err(ResourceError::AgentNotIdle(agent_id.clone())),
-            None => Err(ResourceError::AgentNotExists(agent_id.clone())),
+            Some(_) => Err(EmulateError::AgentNotIdle(agent_id.clone())),
+            None => Err(EmulateError::AgentNotExists(agent_id.clone())),
         }
     }
 
@@ -76,13 +67,13 @@ impl Resource {
         &mut self,
         agent_id: &Uuid,
         status: AgentStatus,
-    ) -> Result<(), ResourceError> {
+    ) -> Result<(), EmulateError> {
         match self.physical_agents.get_mut(agent_id) {
             Some(s) => {
                 *s = status;
                 Ok(())
             }
-            None => Err(ResourceError::AgentNotExists(agent_id.clone())),
+            None => Err(EmulateError::AgentNotExists(agent_id.clone())),
         }
     }
 
@@ -98,7 +89,7 @@ impl Resource {
         self.physical_agents.keys().cloned().collect()
     }
 
-    pub async fn submit_task(&mut self, task: &mut Task, db: &DbConn) -> Result<(), ResourceError> {
+    pub async fn submit_task(&mut self, task: &mut Task, db: &DbConn) -> Result<(), EmulateError> {
         match self.get_idle_agent() {
             Some(physical_agent_id) => {
                 self.set_agent_status(&physical_agent_id, AgentStatus::Running)?;
@@ -107,21 +98,36 @@ impl Resource {
                     task.get_source().to_string(),
                     Some(task.get_option_id()),
                 );
+
                 task.set_agent_id(agent.get_agent_id());
 
-                match (agent.insert_to_db(db).await, task.insert_to_db(db).await) {
+                match (
+                    agent.insert_to_db(db).await,
+                    task.updated_agent_id(db).await,
+                ) {
                     (Ok(_), Ok(_)) => Ok(()),
                     (Err(err), _) => {
                         self.set_agent_status(&physical_agent_id, AgentStatus::Idle)?;
-                        Err(ResourceError::ResourceDbError(err))
+                        Err(EmulateError::ResourceDbError(err))
                     }
                     (_, Err(err)) => {
                         self.set_agent_status(&physical_agent_id, AgentStatus::Idle)?;
-                        Err(ResourceError::ResourceDbError(err))
+                        Err(EmulateError::ResourceDbError(err))
                     }
                 }
             }
-            None => Err(ResourceError::AgentNotIdle(Uuid::new_v4())),
+            None => Err(EmulateError::AgentNotIdle(Uuid::new_v4())),
+        }
+    }
+
+    pub async fn run_task(
+        &self,
+        task: &Task,
+        options: &qasmsim::options::Options,
+    ) -> Result<String, EmulateError> {
+        match qasmsim::run(&task.source, options.shots) {
+            Ok(result) => Ok(qasmsim::print_result(&result, &options)),
+            Err(err) => Err(EmulateError::QasmSimError(format!("{}", err))),
         }
     }
 }

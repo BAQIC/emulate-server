@@ -1,6 +1,6 @@
 use crate::entity::*;
 use chrono::NaiveDateTime;
-use sea_orm::{ActiveValue, DbConn, EntityTrait};
+use sea_orm::{ActiveModelTrait, ActiveValue, DbConn, EntityTrait};
 use uuid::Uuid;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -43,6 +43,24 @@ impl Default for Task {
 }
 
 impl Task {
+    pub fn new(source: String, option_id: Uuid) -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            source,
+            result: None,
+            option_id,
+            status: TaskStatus::NotStarted,
+            created_time: chrono::Utc::now().naive_utc(),
+            updated_time: chrono::Utc::now().naive_utc(),
+            agent_id: None,
+            physical_agent_id: None,
+        }
+    }
+
+    pub fn get_id(&self) -> Uuid {
+        self.id
+    }
+
     pub fn set_agent_id(&mut self, agent_id: Uuid) {
         self.agent_id = Some(agent_id);
     }
@@ -78,6 +96,18 @@ impl Task {
         })
         .exec(db)
         .await?;
+        Ok(())
+    }
+
+    pub async fn updated_agent_id(&self, db: &DbConn) -> Result<(), sea_orm::prelude::DbErr> {
+        let mut task: task::ActiveModel = task::Entity::find_by_id(self.id)
+            .one(db)
+            .await?
+            .unwrap()
+            .into();
+        task.agent_id = ActiveValue::set(self.agent_id);
+        task.updated_time = ActiveValue::set(chrono::Utc::now().naive_utc());
+        task.update(db).await?;
         Ok(())
     }
 }

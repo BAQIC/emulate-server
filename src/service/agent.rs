@@ -2,6 +2,8 @@ use crate::entity::*;
 use sea_orm::{ActiveValue, DbConn, EntityTrait};
 use uuid::Uuid;
 
+use super::task::Task;
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum AgentStatus {
     Failed,
