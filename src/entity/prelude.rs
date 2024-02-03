@@ -2,5 +2,4 @@
 
 pub use super::agent::Entity as Agent;
 pub use super::options::Entity as Options;
-pub use super::resource::Entity as Resource;
 pub use super::task::Entity as Task;

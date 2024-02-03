@@ -10,9 +10,8 @@ pub struct Migration;
 #[derive(DeriveIden, EnumIter)]
 pub enum Format {
     Table,
-    Running,
-    Succeeded,
-    Failed,
+    Json,
+    Tabular,
 }
 
 #[derive(DeriveIden)]

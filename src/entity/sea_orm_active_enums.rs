@@ -7,6 +7,8 @@ use sea_orm::entity::prelude::*;
 pub enum AgentStatus {
     #[sea_orm(string_value = "failed")]
     Failed,
+    #[sea_orm(string_value = "idle")]
+    Idle,
     #[sea_orm(string_value = "running")]
     Running,
     #[sea_orm(string_value = "succeeded")]
@@ -15,22 +17,10 @@ pub enum AgentStatus {
 #[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum)]
 #[sea_orm(rs_type = "String", db_type = "Enum", enum_name = "format")]
 pub enum Format {
-    #[sea_orm(string_value = "failed")]
-    Failed,
-    #[sea_orm(string_value = "running")]
-    Running,
-    #[sea_orm(string_value = "succeeded")]
-    Succeeded,
-}
-#[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum)]
-#[sea_orm(rs_type = "String", db_type = "Enum", enum_name = "resource_status")]
-pub enum ResourceStatus {
-    #[sea_orm(string_value = "fully_used")]
-    FullyUsed,
-    #[sea_orm(string_value = "partially_used")]
-    PartiallyUsed,
-    #[sea_orm(string_value = "paused")]
-    Paused,
+    #[sea_orm(string_value = "json")]
+    Json,
+    #[sea_orm(string_value = "tabular")]
+    Tabular,
 }
 #[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum)]
 #[sea_orm(rs_type = "String", db_type = "Enum", enum_name = "task_status")]

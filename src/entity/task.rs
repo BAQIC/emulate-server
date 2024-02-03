@@ -14,8 +14,8 @@ pub struct Model {
     pub status: TaskStatus,
     pub created_time: DateTime,
     pub updated_time: DateTime,
-    pub resource_id: Option<Uuid>,
     pub agent_id: Option<Uuid>,
+    pub physical_agent_id: Option<Uuid>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -36,14 +36,6 @@ pub enum Relation {
         on_delete = "Cascade"
     )]
     Options,
-    #[sea_orm(
-        belongs_to = "super::resource::Entity",
-        from = "Column::ResourceId",
-        to = "super::resource::Column::Id",
-        on_update = "Cascade",
-        on_delete = "Cascade"
-    )]
-    Resource,
 }
 
 impl Related<super::agent::Entity> for Entity {
@@ -55,12 +47,6 @@ impl Related<super::agent::Entity> for Entity {
 impl Related<super::options::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Options.def()
-    }
-}
-
-impl Related<super::resource::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::Resource.def()
     }
 }
 

@@ -12,16 +12,17 @@ pub struct Migration;
 pub enum Agent {
     Table,
     Id,
+    PhysicalId,
     Source,
     Result,
     Status,
     OptionId,
-    ResourceId,
 }
 
 #[derive(DeriveIden, EnumIter)]
 enum AgentStatus {
     Table,
+    Idle,
     Running,
     Succeeded,
     Failed,
@@ -51,6 +52,7 @@ impl MigrationTrait for Migration {
                             .primary_key()
                             .unique_key(),
                     )
+                    .col(ColumnDef::new(Agent::PhysicalId).uuid().not_null())
                     .col(ColumnDef::new(Agent::Source).string().not_null())
                     .col(ColumnDef::new(Agent::Result).string().null())
                     .col(
@@ -58,19 +60,10 @@ impl MigrationTrait for Migration {
                             .enumeration(AgentStatus::Table, AgentStatus::iter().skip(1))
                             .not_null(),
                     )
-                    .col(ColumnDef::new(Agent::OptionId).uuid().null().unique_key())
-                    .col(ColumnDef::new(Agent::ResourceId).uuid().null())
+                    .col(ColumnDef::new(Agent::OptionId).uuid().not_null())
                     .foreign_key(
                         ForeignKey::create()
                             .name("fk_agent_options_id")
-                            .from(Agent::Table, Agent::OptionId)
-                            .to(Options::Table, Options::Id)
-                            .on_delete(ForeignKeyAction::Cascade)
-                            .on_update(ForeignKeyAction::Cascade),
-                    )
-                    .foreign_key(
-                        ForeignKey::create()
-                            .name("fk_agent_resource_id")
                             .from(Agent::Table, Agent::OptionId)
                             .to(Options::Table, Options::Id)
                             .on_delete(ForeignKeyAction::Cascade)

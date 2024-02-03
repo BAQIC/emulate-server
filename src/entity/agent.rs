@@ -8,12 +8,11 @@ use sea_orm::entity::prelude::*;
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: Uuid,
+    pub physical_id: Uuid,
     pub source: String,
     pub result: Option<String>,
     pub status: AgentStatus,
-    #[sea_orm(unique)]
-    pub option_id: Option<Uuid>,
-    pub resource_id: Option<Uuid>,
+    pub option_id: Uuid,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -25,17 +24,15 @@ pub enum Relation {
         on_update = "Cascade",
         on_delete = "Cascade"
     )]
-    Options2,
-    #[sea_orm(
-        belongs_to = "super::options::Entity",
-        from = "Column::OptionId",
-        to = "super::options::Column::Id",
-        on_update = "Cascade",
-        on_delete = "Cascade"
-    )]
-    Options1,
+    Options,
     #[sea_orm(has_many = "super::task::Entity")]
     Task,
+}
+
+impl Related<super::options::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Options.def()
+    }
 }
 
 impl Related<super::task::Entity> for Entity {

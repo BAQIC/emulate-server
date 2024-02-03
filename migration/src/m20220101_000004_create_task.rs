@@ -1,6 +1,7 @@
 use super::{
-    m20220101_000001_create_options::Options, m20220101_000002_create_agent::Agent,
-    m20220101_000003_create_resource::Resource,
+    m20220101_000001_create_options::Options,
+    m20220101_000002_create_agent::Agent,
+    // m20220101_000003_create_resource::Resource,
 };
 use sea_orm_migration::{
     prelude::*,
@@ -21,8 +22,8 @@ pub enum Task {
     Status,
     CreatedTime,
     UpdatedTime,
-    ResourceId,
     AgentId,
+    PhysicalAgentId,
 }
 
 #[derive(DeriveIden, EnumIter)]
@@ -67,21 +68,13 @@ impl MigrationTrait for Migration {
                     )
                     .col(ColumnDef::new(Task::CreatedTime).timestamp().not_null())
                     .col(ColumnDef::new(Task::UpdatedTime).timestamp().not_null())
-                    .col(ColumnDef::new(Task::ResourceId).uuid().null())
                     .col(ColumnDef::new(Task::AgentId).uuid().null())
+                    .col(ColumnDef::new(Task::PhysicalAgentId).uuid().null())
                     .foreign_key(
                         ForeignKey::create()
                             .name("fk_task_option_id")
                             .from_col(Task::OptionId)
                             .to(Options::Table, Options::Id)
-                            .on_delete(ForeignKeyAction::Cascade)
-                            .on_update(ForeignKeyAction::Cascade),
-                    )
-                    .foreign_key(
-                        ForeignKey::create()
-                            .name("fk_task_resource_id")
-                            .from_col(Task::ResourceId)
-                            .to(Resource::Table, Resource::Id)
                             .on_delete(ForeignKeyAction::Cascade)
                             .on_update(ForeignKeyAction::Cascade),
                     )

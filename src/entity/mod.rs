@@ -4,6 +4,5 @@ pub mod prelude;
 
 pub mod agent;
 pub mod options;
-pub mod resource;
 pub mod sea_orm_active_enums;
 pub mod task;
