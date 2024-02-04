@@ -1,86 +1,50 @@
-use super::options::Options;
 use super::resource::Resource;
 use super::task::Task;
+use crate::entity::*;
 use sea_orm::DbConn;
-use std::{collections::VecDeque, error::Error};
-use uuid::Uuid;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Qthread {
-    /// all resources
-    pub resource: Resource,
-
-    /// queue of waitting tasks
-    pub tasks: VecDeque<Uuid>,
-}
-
-impl Default for Qthread {
-    fn default() -> Self {
-        Self {
-            resource: Resource::default(),
-            tasks: VecDeque::new(),
-        }
-    }
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub enum EmulateError {
-    AgentNotIdle(Uuid),
-    AgentNotExists(Uuid),
-    ResourceDbError(sea_orm::prelude::DbErr),
-    QasmSimError(String),
-}
-
-impl Error for EmulateError {}
-
-impl std::fmt::Display for EmulateError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            EmulateError::AgentNotIdle(id) => write!(f, "Agent {} is not idle", id),
-            EmulateError::AgentNotExists(id) => write!(f, "Agent {} does not exist", id),
-            EmulateError::ResourceDbError(err) => write!(f, "Resource db error: {}", err),
-            EmulateError::QasmSimError(err) => write!(f, "QasmSim error: {}", err),
-        }
-    }
-}
+pub struct Qthread;
 
 impl Qthread {
-    pub fn new(physical_agents_num: u32) -> Self {
-        Self {
-            resource: Resource::new(physical_agents_num),
-            tasks: VecDeque::new(),
-        }
-    }
-
-    pub async fn add_task(
-        &mut self,
-        source: &str,
-        options: &qasmsim::options::Options,
+    pub async fn submit_task(
         db: &DbConn,
-    ) -> Result<Task, EmulateError> {
-        let option = Options::new(&options);
-        let mut task = Task::new(source.to_string(), option.id);
-
-        match (option.insert_to_db(db).await, task.insert_to_db(db).await) {
-            (Ok(_), Ok(_)) => (),
-            (Err(err), _) => return Err(EmulateError::ResourceDbError(err)),
-            (_, Err(err)) => return Err(EmulateError::ResourceDbError(err)),
+        data: task::Model,
+    ) -> Result<task::Model, sea_orm::prelude::DbErr> {
+        match Task::add_task(db, data).await {
+            Ok(task) => match Resource::submit_task(db, task).await {
+                Ok(task) => Ok(task),
+                Err(err) => Err(err),
+            },
+            Err(err) => Err(err),
         }
-
-        if self.resource.idle_agents_num > 0 {
-            self.resource.submit_task(&mut task, db).await?;
-        } else {
-            self.tasks.push_back(task.get_id());
-        }
-
-        Ok(task)
     }
 
-    pub async fn run_task(
-        &self,
-        task: &Task,
-        options: &qasmsim::options::Options,
-    ) -> Result<String, EmulateError> {
-        self.resource.run_task(task, options).await
+    pub async fn finish_task(
+        db: &DbConn,
+        task_id: uuid::Uuid,
+        result: Option<String>,
+        task_status: sea_orm_active_enums::TaskStatus,
+        agent_status: sea_orm_active_enums::AgentStatus,
+    ) -> Result<task::Model, sea_orm::prelude::DbErr> {
+        match Task::update_task_status_result(db, task_id, task_status, result.clone()).await {
+            Ok(task) => match Resource::finish_task(db, task.id, result, agent_status).await {
+                Ok(_) => Ok(task),
+                Err(err) => Err(err),
+            },
+            Err(err) => Err(err),
+        }
+    }
+
+    pub async fn submit_waiting_task(
+        db: &DbConn,
+    ) -> Result<Option<task::Model>, sea_orm::prelude::DbErr> {
+        match Task::get_first_waiting_task(db).await {
+            Ok(Some(task)) => match Resource::submit_task(db, task).await {
+                Ok(task) => Ok(Some(task)),
+                Err(err) => Err(err),
+            },
+            Ok(None) => Ok(None),
+            Err(err) => Err(err),
+        }
     }
 }

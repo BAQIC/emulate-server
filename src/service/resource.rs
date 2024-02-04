@@ -1,133 +1,107 @@
-use super::{agent::Agent, agent::AgentStatus, qthread::EmulateError, task::Task};
-use sea_orm::DbConn;
-use std::collections::HashMap;
+use super::{
+    agent::{Agent, PhysicalAgent},
+    task::Task,
+};
+use crate::entity::*;
+use sea_orm::{DbConn, DeleteResult};
 use uuid::Uuid;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Resource {
-    pub physical_agents_num: u32,
-    pub idle_agents_num: u32,
-    pub physical_agents: HashMap<Uuid, AgentStatus>,
-    pub idle_physical_agents: Vec<Uuid>,
-}
-
-impl Default for Resource {
-    fn default() -> Self {
-        Self {
-            physical_agents_num: 0,
-            idle_agents_num: 0,
-            physical_agents: HashMap::new(),
-            idle_physical_agents: Vec::new(),
-        }
-    }
-}
+pub struct Resource;
 
 impl Resource {
-    pub fn new(physical_agents_num: u32) -> Self {
-        let mut resource = Resource::default();
+    pub async fn random_init_physical_agents(
+        db: &DbConn,
+        physical_agents_num: u32,
+    ) -> Result<Vec<physical_agent::Model>, sea_orm::prelude::DbErr> {
+        let mut agents = vec![];
         for _ in 0..physical_agents_num {
-            resource.add_physical_agent(&Uuid::new_v4());
+            agents.push(Resource::add_physical_agent(db, Uuid::new_v4()).await?);
         }
-        resource
+        Ok(agents)
     }
 
-    pub fn add_physical_agent(&mut self, agent_id: &Uuid) {
-        self.physical_agents
-            .insert(agent_id.clone(), AgentStatus::Idle);
-        self.physical_agents_num += 1;
-        self.idle_agents_num += 1;
-        self.idle_physical_agents.push(agent_id.clone());
+    pub async fn add_physical_agent(
+        db: &DbConn,
+        agent_id: Uuid,
+    ) -> Result<physical_agent::Model, sea_orm::prelude::DbErr> {
+        PhysicalAgent::add_physical_agent(
+            db,
+            physical_agent::Model {
+                id: agent_id,
+                physical_agent_status: sea_orm_active_enums::PhysicalAgentStatus::Idle,
+            },
+        )
+        .await
     }
 
-    pub fn add_physical_agents(&mut self, agent_ids: Vec<Uuid>) {
-        agent_ids.iter().for_each(|id| self.add_physical_agent(id));
+    pub async fn remove_physical_agent(
+        db: &DbConn,
+        agent_id: Uuid,
+    ) -> Result<DeleteResult, sea_orm::prelude::DbErr> {
+        PhysicalAgent::remove_physical_agent(db, agent_id).await
     }
 
-    pub fn remove_physical_agent(&mut self, agent_id: &Uuid) -> Result<(), EmulateError> {
-        match self.physical_agents.remove(agent_id) {
-            Some(AgentStatus::Idle) => {
-                self.physical_agents_num -= 1;
-                self.idle_agents_num -= 1;
-                Ok(())
-            }
-            Some(_) => Err(EmulateError::AgentNotIdle(agent_id.clone())),
-            None => Err(EmulateError::AgentNotExists(agent_id.clone())),
-        }
+    pub async fn get_idle_agent(
+        db: &DbConn,
+    ) -> Result<Option<physical_agent::Model>, sea_orm::prelude::DbErr> {
+        PhysicalAgent::get_idle_physical_agent(db).await
     }
 
-    pub fn get_idle_agent(&mut self) -> Option<Uuid> {
-        self.idle_physical_agents.pop()
+    pub async fn update_physical_agent_status(
+        db: &DbConn,
+        agent_id: Uuid,
+        status: sea_orm_active_enums::PhysicalAgentStatus,
+    ) -> Result<physical_agent::Model, sea_orm::prelude::DbErr> {
+        PhysicalAgent::update_physical_agent_status(db, agent_id, status).await
     }
 
-    pub fn get_agent_status(&self, agent_id: &Uuid) -> Option<AgentStatus> {
-        self.physical_agents.get(agent_id).cloned()
-    }
-
-    pub fn set_agent_status(
-        &mut self,
-        agent_id: &Uuid,
-        status: AgentStatus,
-    ) -> Result<(), EmulateError> {
-        match self.physical_agents.get_mut(agent_id) {
-            Some(s) => {
-                *s = status;
-                Ok(())
-            }
-            None => Err(EmulateError::AgentNotExists(agent_id.clone())),
-        }
-    }
-
-    pub fn get_agents_num(&self) -> u32 {
-        self.physical_agents_num
-    }
-
-    pub fn get_idle_agents_num(&self) -> u32 {
-        self.idle_agents_num
-    }
-
-    pub fn get_agents(&self) -> Vec<Uuid> {
-        self.physical_agents.keys().cloned().collect()
-    }
-
-    pub async fn submit_task(&mut self, task: &mut Task, db: &DbConn) -> Result<(), EmulateError> {
-        match self.get_idle_agent() {
-            Some(physical_agent_id) => {
-                self.set_agent_status(&physical_agent_id, AgentStatus::Running)?;
-                let agent = Agent::new(
-                    physical_agent_id,
-                    task.get_source().to_string(),
-                    Some(task.get_option_id()),
-                );
-
-                task.set_agent_id(agent.get_agent_id());
-
-                match (
-                    agent.insert_to_db(db).await,
-                    task.updated_agent_id(db).await,
-                ) {
-                    (Ok(_), Ok(_)) => Ok(()),
-                    (Err(err), _) => {
-                        self.set_agent_status(&physical_agent_id, AgentStatus::Idle)?;
-                        Err(EmulateError::ResourceDbError(err))
+    pub async fn submit_task(
+        db: &DbConn,
+        task: task::Model,
+    ) -> Result<task::Model, sea_orm::prelude::DbErr> {
+        let result = Resource::get_idle_agent(db).await;
+        match result {
+            Ok(Some(physical_agent)) => {
+                match Agent::add_agent(
+                    db,
+                    agent::Model {
+                        id: uuid::Uuid::new_v4(),
+                        physical_id: physical_agent.id,
+                        source: task.source.clone(),
+                        result: None,
+                        status: sea_orm_active_enums::AgentStatus::Running,
+                        option_id: task.option_id,
+                    },
+                )
+                .await
+                {
+                    Ok(agent) => {
+                        match Task::update_task_agent_id_status(
+                            db,
+                            task.id,
+                            agent.id,
+                            sea_orm_active_enums::TaskStatus::Running,
+                        )
+                        .await
+                        {
+                            Ok(task) => Ok(task),
+                            Err(e) => Err(e),
+                        }
                     }
-                    (_, Err(err)) => {
-                        self.set_agent_status(&physical_agent_id, AgentStatus::Idle)?;
-                        Err(EmulateError::ResourceDbError(err))
-                    }
+                    Err(e) => Err(e),
                 }
             }
-            None => Err(EmulateError::AgentNotIdle(Uuid::new_v4())),
+            Ok(None) => Ok(task),
+            Err(e) => Err(e),
         }
     }
 
-    pub async fn run_task(
-        &self,
-        task: &Task,
-        options: &qasmsim::options::Options,
-    ) -> Result<String, EmulateError> {
-        match qasmsim::run(&task.source, options.shots) {
-            Ok(result) => Ok(qasmsim::print_result(&result, &options)),
-            Err(err) => Err(EmulateError::QasmSimError(format!("{}", err))),
-        }
+    pub async fn finish_task(
+        db: &DbConn,
+        task_id: Uuid,
+        result: Option<String>,
+        agent_status: sea_orm_active_enums::AgentStatus,
+    ) -> Result<agent::Model, sea_orm::prelude::DbErr> {
+        Agent::updated_agent_status_result(db, task_id, agent_status, result).await
     }
 }

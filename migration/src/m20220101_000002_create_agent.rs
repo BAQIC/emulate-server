@@ -1,4 +1,5 @@
 use super::m20220101_000001_create_options::Options;
+use super::m20220101_000002_create_physical_agent::PhysicalAgent;
 use sea_orm_migration::{
     prelude::*,
     sea_orm::{EnumIter, Iterable},
@@ -22,7 +23,6 @@ pub enum Agent {
 #[derive(DeriveIden, EnumIter)]
 enum AgentStatus {
     Table,
-    Idle,
     Running,
     Succeeded,
     Failed,
@@ -61,6 +61,14 @@ impl MigrationTrait for Migration {
                             .not_null(),
                     )
                     .col(ColumnDef::new(Agent::OptionId).uuid().not_null())
+                    .foreign_key(
+                        ForeignKey::create()
+                            .name("fk_agent_physical_agent_id")
+                            .from(Agent::Table, Agent::PhysicalId)
+                            .to(PhysicalAgent::Table, PhysicalAgent::Id)
+                            .on_delete(ForeignKeyAction::Cascade)
+                            .on_update(ForeignKeyAction::Cascade),
+                    )
                     .foreign_key(
                         ForeignKey::create()
                             .name("fk_agent_options_id")

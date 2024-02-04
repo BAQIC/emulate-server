@@ -25,6 +25,14 @@ pub enum Relation {
         on_delete = "Cascade"
     )]
     Options,
+    #[sea_orm(
+        belongs_to = "super::physical_agent::Entity",
+        from = "Column::PhysicalId",
+        to = "super::physical_agent::Column::Id",
+        on_update = "Cascade",
+        on_delete = "Cascade"
+    )]
+    PhysicalAgent,
     #[sea_orm(has_many = "super::task::Entity")]
     Task,
 }
@@ -32,6 +40,12 @@ pub enum Relation {
 impl Related<super::options::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Options.def()
+    }
+}
+
+impl Related<super::physical_agent::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::PhysicalAgent.def()
     }
 }
 

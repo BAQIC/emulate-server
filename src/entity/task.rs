@@ -15,7 +15,6 @@ pub struct Model {
     pub created_time: DateTime,
     pub updated_time: DateTime,
     pub agent_id: Option<Uuid>,
-    pub physical_agent_id: Option<Uuid>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

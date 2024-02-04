@@ -2,4 +2,5 @@
 
 pub use super::agent::Entity as Agent;
 pub use super::options::Entity as Options;
+pub use super::physical_agent::Entity as PhysicalAgent;
 pub use super::task::Entity as Task;

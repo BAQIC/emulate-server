@@ -23,7 +23,6 @@ pub enum Task {
     CreatedTime,
     UpdatedTime,
     AgentId,
-    PhysicalAgentId,
 }
 
 #[derive(DeriveIden, EnumIter)]
@@ -69,7 +68,6 @@ impl MigrationTrait for Migration {
                     .col(ColumnDef::new(Task::CreatedTime).timestamp().not_null())
                     .col(ColumnDef::new(Task::UpdatedTime).timestamp().not_null())
                     .col(ColumnDef::new(Task::AgentId).uuid().null())
-                    .col(ColumnDef::new(Task::PhysicalAgentId).uuid().null())
                     .foreign_key(
                         ForeignKey::create()
                             .name("fk_task_option_id")

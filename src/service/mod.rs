@@ -1,5 +1,5 @@
-pub mod agent;
+mod agent;
 pub mod options;
 pub mod qthread;
 pub mod resource;
-pub mod task;
+pub(self) mod task;
