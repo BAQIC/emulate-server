@@ -27,10 +27,13 @@ impl Qthread {
         agent_status: sea_orm_active_enums::AgentStatus,
     ) -> Result<task::Model, sea_orm::prelude::DbErr> {
         match Task::update_task_status_result(db, task_id, task_status, result.clone()).await {
-            Ok(task) => match Resource::finish_task(db, task.id, result, agent_status).await {
-                Ok(_) => Ok(task),
-                Err(err) => Err(err),
-            },
+            Ok(task) => {
+                match Resource::finish_task(db, task.agent_id.unwrap(), result, agent_status).await
+                {
+                    Ok(_) => Ok(task),
+                    Err(err) => Err(err),
+                }
+            }
             Err(err) => Err(err),
         }
     }

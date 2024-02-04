@@ -98,10 +98,24 @@ impl Resource {
 
     pub async fn finish_task(
         db: &DbConn,
-        task_id: Uuid,
+        agent_id: Uuid,
         result: Option<String>,
         agent_status: sea_orm_active_enums::AgentStatus,
     ) -> Result<agent::Model, sea_orm::prelude::DbErr> {
-        Agent::updated_agent_status_result(db, task_id, agent_status, result).await
+        match Agent::updated_agent_status_result(db, agent_id, agent_status, result).await {
+            Ok(agent) => {
+                match PhysicalAgent::update_physical_agent_status(
+                    db,
+                    agent.physical_id,
+                    sea_orm_active_enums::PhysicalAgentStatus::Idle,
+                )
+                .await
+                {
+                    Ok(_) => Ok(agent),
+                    Err(e) => Err(e),
+                }
+            }
+            Err(e) => Err(e),
+        }
     }
 }
