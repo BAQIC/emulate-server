@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Request, State},
+    extract::{Query, Request, State},
     http::{header, StatusCode},
     routing, Form, Json, RequestExt, Router,
 };
@@ -25,6 +25,11 @@ pub struct ServerState {
     pub db: DbConn,
 }
 
+#[derive(Deserialize)]
+pub struct TaskID {
+    task_id: String,
+}
+
 pub fn model_option_to_qasm_option(option: entity::options::Model) -> qasmsim::options::Options {
     qasmsim::options::Options {
         shots: match option.shots {
@@ -41,6 +46,19 @@ pub fn model_option_to_qasm_option(option: entity::options::Model) -> qasmsim::o
         statevector: option.statevector,
         probabilities: option.probabilities,
         times: option.times,
+    }
+}
+
+pub fn merge_json(v: &Value, fields: Vec<(String, String)>) -> Value {
+    match v {
+        Value::Object(m) => {
+            let mut m = m.clone();
+            for (key, value) in fields {
+                m.insert(key, Value::String(value));
+            }
+            Value::Object(m)
+        }
+        v => v.clone(),
     }
 }
 
@@ -209,20 +227,30 @@ async fn consume_task(
                 Ok(result) => (
                     StatusCode::OK,
                     match options.format {
-                        qasmsim::options::Format::Json => Json(
-                            serde_json::from_str::<Value>(&qasmsim::print_result(
+                        qasmsim::options::Format::Json => Json(merge_json(
+                            &serde_json::from_str::<Value>(&qasmsim::print_result(
                                 &result, &options,
                             ))
                             .unwrap(),
-                        ),
-                        qasmsim::options::Format::Tabular => {
-                            Json(json!({"Result": qasmsim::print_result(&result, &options)}))
-                        }
+                            vec![
+                                ("Message".to_owned(), "Task is succeeded".to_owned()),
+                                ("task_id".to_owned(), task.id.to_string()),
+                            ],
+                        )),
+                        qasmsim::options::Format::Tabular => Json(json!({
+                            "Message": "Task is succeeded",
+                            "Result": Some(qasmsim::print_result(&result, &options)),
+                            "task_id": task.id
+                        })),
                     },
                 ),
                 Err(err) => (
                     StatusCode::BAD_REQUEST,
-                    Json(json!({"Error": format!("{}", err)})),
+                    Json(json!({
+                        "Message": "Task is failed",
+                        "Result": Some(format!("{}", err)),
+                        "task_id": task.id
+                    })),
                 ),
             }
         }
@@ -297,6 +325,61 @@ pub async fn submit(state: State<ServerState>, request: Request) -> (StatusCode,
     }
 }
 
+pub async fn get_task(
+    state: State<ServerState>,
+    query_message: Query<TaskID>,
+) -> (StatusCode, Json<Value>) {
+    let db = &state.db;
+    match service::task::Task::get_task(db, uuid::Uuid::parse_str(&query_message.task_id).unwrap())
+        .await
+    {
+        Ok(task) => match task {
+            Some(task) => match task.status {
+                sea_orm_active_enums::TaskStatus::Running => (
+                    StatusCode::OK,
+                    Json(json!({
+                        "Message": "Task is running",
+                        "task_id": task.id
+                    })),
+                ),
+                sea_orm_active_enums::TaskStatus::NotStarted => (
+                    StatusCode::OK,
+                    Json(json!({
+                        "Message": "Task is waiting",
+                        "task_id": task.id
+                    })),
+                ),
+                sea_orm_active_enums::TaskStatus::Succeeded => (
+                    StatusCode::OK,
+                    Json(merge_json(
+                        &serde_json::from_str::<Value>(&task.result.unwrap()).unwrap(),
+                        vec![
+                            ("Message".to_owned(), "Task is succeeded".to_owned()),
+                            ("task_id".to_owned(), task.id.to_string()),
+                        ],
+                    )),
+                ),
+                sea_orm_active_enums::TaskStatus::Failed => (
+                    StatusCode::OK,
+                    Json(json!({
+                        "Message": "Task is failed",
+                        "task_id": task.id,
+                        "result": task.result.unwrap()
+                    })),
+                ),
+            },
+            None => (
+                StatusCode::BAD_REQUEST,
+                Json(json!({"Error": format!("Task with id {} not found", query_message.task_id)})),
+            ),
+        },
+        Err(err) => (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"Error": format!("{}", err)})),
+        ),
+    }
+}
+
 fn main() {
     std::thread::spawn(|| {
         let rt = tokio::runtime::Runtime::new().unwrap();
@@ -319,14 +402,6 @@ fn main() {
                 )
                 .await
                 .unwrap();
-
-                println!("waiting tasks: {:?}", waiting_tasks.len());
-                println!(
-                    "idle agents: {:?}",
-                    service::resource::Resource::get_idle_agent_num(&db)
-                        .await
-                        .unwrap()
-                );
 
                 for waiting_task in waiting_tasks {
                     let db = db.clone();
@@ -356,6 +431,7 @@ fn main() {
             .route("/init", routing::get(init_db))
             .route("/submit", routing::post(submit))
             .route("/emulate", routing::post(emulate))
+            .route("/get_task", routing::get(get_task))
             .with_state(state);
 
         let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();

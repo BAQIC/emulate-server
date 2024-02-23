@@ -1,5 +1,5 @@
 use crate::entity::*;
-use sea_orm::{ActiveModelTrait, ActiveValue, ColumnTrait, DbConn, EntityTrait, QueryFilter};
+use sea_orm::{ActiveModelTrait, ActiveValue, DbConn, EntityTrait};
 
 pub struct Options;
 
@@ -48,9 +48,6 @@ impl Options {
         db: &DbConn,
         id: uuid::Uuid,
     ) -> Result<Option<options::Model>, sea_orm::prelude::DbErr> {
-        options::Entity::find()
-            .filter(options::Column::Id.eq(id))
-            .one(db)
-            .await
+        options::Entity::find_by_id(id).one(db).await
     }
 }

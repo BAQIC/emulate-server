@@ -85,6 +85,13 @@ impl Task {
         }
     }
 
+    pub async fn get_task(
+        db: &DbConn,
+        task_id: uuid::Uuid,
+    ) -> Result<Option<task::Model>, sea_orm::prelude::DbErr> {
+        task::Entity::find_by_id(task_id).one(db).await
+    }
+
     pub async fn update_task_status_result(
         db: &DbConn,
         task_id: uuid::Uuid,
