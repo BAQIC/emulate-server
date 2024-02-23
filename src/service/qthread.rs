@@ -19,12 +19,24 @@ impl Qthread {
         }
     }
 
+    pub async fn submit_task_without_add(
+        db: &DbConn,
+        data: task::Model,
+    ) -> Result<task::Model, sea_orm::prelude::DbErr> {
+        match Resource::submit_task(db, data).await {
+            Ok(task) => Ok(task),
+            Err(err) => Err(err),
+        }
+    }
+
     pub async fn finish_task(
         db: &DbConn,
         task_id: uuid::Uuid,
-        result: Option<String>,
-        task_status: sea_orm_active_enums::TaskStatus,
-        agent_status: sea_orm_active_enums::AgentStatus,
+        (result, task_status, agent_status): (
+            Option<String>,
+            sea_orm_active_enums::TaskStatus,
+            sea_orm_active_enums::AgentStatus,
+        ),
     ) -> Result<task::Model, sea_orm::prelude::DbErr> {
         match Task::update_task_status_result(db, task_id, task_status, result.clone()).await {
             Ok(task) => {

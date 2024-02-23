@@ -1,5 +1,5 @@
 use crate::entity::*;
-use sea_orm::{ActiveModelTrait, ActiveValue, DbConn};
+use sea_orm::{ActiveModelTrait, ActiveValue, ColumnTrait, DbConn, EntityTrait, QueryFilter};
 
 pub struct Options;
 
@@ -42,5 +42,15 @@ impl Options {
             shots: options.shots.map(|x| x as i32),
         };
         Options::add_options(db, options).await
+    }
+
+    pub async fn get_option(
+        db: &DbConn,
+        id: uuid::Uuid,
+    ) -> Result<Option<options::Model>, sea_orm::prelude::DbErr> {
+        options::Entity::find()
+            .filter(options::Column::Id.eq(id))
+            .one(db)
+            .await
     }
 }

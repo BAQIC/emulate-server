@@ -1,5 +1,8 @@
 use crate::entity::*;
-use sea_orm::{ActiveModelTrait, ColumnTrait, DbConn, DeleteResult, EntityTrait, QueryFilter, Set};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DbConn, DeleteResult, EntityTrait, PaginatorTrait, QueryFilter,
+    Set,
+};
 
 pub struct Agent;
 
@@ -74,6 +77,16 @@ impl PhysicalAgent {
             Ok(None) => Ok(None),
             Err(err) => Err(err),
         }
+    }
+
+    pub async fn get_idle_physical_agent_num(db: &DbConn) -> Result<u64, sea_orm::prelude::DbErr> {
+        physical_agent::Entity::find()
+            .filter(
+                physical_agent::Column::PhysicalAgentStatus
+                    .eq(sea_orm_active_enums::PhysicalAgentStatus::Idle),
+            )
+            .count(db)
+            .await
     }
 
     pub async fn update_physical_agent_status(

@@ -47,6 +47,10 @@ impl Resource {
         PhysicalAgent::get_idle_physical_agent(db).await
     }
 
+    pub async fn get_idle_agent_num(db: &DbConn) -> Result<u64, sea_orm::prelude::DbErr> {
+        PhysicalAgent::get_idle_physical_agent_num(db).await
+    }
+
     pub async fn update_physical_agent_status(
         db: &DbConn,
         agent_id: Uuid,

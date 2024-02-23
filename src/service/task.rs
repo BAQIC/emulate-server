@@ -51,6 +51,40 @@ impl Task {
             .await
     }
 
+    // get all waiting tasks if num is None or num is larger than the number of waiting tasks
+    pub async fn get_waiting_task(
+        db: &DbConn,
+        num: Option<u64>,
+    ) -> Result<Vec<task::Model>, sea_orm::prelude::DbErr> {
+        match num {
+            Some(num) => {
+                match task::Entity::find()
+                    .filter(task::Column::Status.eq(sea_orm_active_enums::TaskStatus::NotStarted))
+                    .order_by_asc(task::Column::CreatedTime)
+                    .all(db)
+                    .await
+                {
+                    Ok(tasks) => {
+                        let num = num as usize;
+                        if tasks.len() > num {
+                            Ok(tasks[..num].to_vec())
+                        } else {
+                            Ok(tasks)
+                        }
+                    }
+                    Err(e) => Err(e),
+                }
+            }
+            None => {
+                task::Entity::find()
+                    .filter(task::Column::Status.eq(sea_orm_active_enums::TaskStatus::NotStarted))
+                    .order_by_asc(task::Column::CreatedTime)
+                    .all(db)
+                    .await
+            }
+        }
+    }
+
     pub async fn update_task_status_result(
         db: &DbConn,
         task_id: uuid::Uuid,
