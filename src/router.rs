@@ -28,6 +28,12 @@ pub struct TaskID {
     task_id: String,
 }
 
+#[derive(Deserialize)]
+pub struct AgentNum {
+    agent_num: String,
+}
+
+/// Convert entity::Model::Options to qasmsim::options::Options
 pub fn model_option_to_qasm_option(option: entity::options::Model) -> qasmsim::options::Options {
     qasmsim::options::Options {
         shots: match option.shots {
@@ -47,7 +53,9 @@ pub fn model_option_to_qasm_option(option: entity::options::Model) -> qasmsim::o
     }
 }
 
+/// Merge fields into a json object
 pub fn merge_json(v: &Value, fields: Vec<(String, String)>) -> Value {
+    // If v is not an object, return v. Otherwise, merge fields into v
     match v {
         Value::Object(m) => {
             let mut m = m.clone();
@@ -60,6 +68,7 @@ pub fn merge_json(v: &Value, fields: Vec<(String, String)>) -> Value {
     }
 }
 
+/// This method is used to test the server
 pub async fn root() -> (StatusCode, Json<Value>) {
     let source = "
     OPENQASM 2.0;
@@ -97,6 +106,8 @@ pub async fn root() -> (StatusCode, Json<Value>) {
     }
 }
 
+/// Direct consume the task and return the result without database operation
+#[deprecated(since = "0.1.0", note = "Please use `comsume_task` instead")]
 async fn consume_body(Form(emulate_message): Form<EmulateMessage>) -> (StatusCode, Json<Value>) {
     let options = qasmsim::options::Options {
         shots: if emulate_message.shots == 0 {
@@ -132,8 +143,11 @@ async fn consume_body(Form(emulate_message): Form<EmulateMessage>) -> (StatusCod
     }
 }
 
+/// Emulate the quantum circuit and return the result with database operation
+#[deprecated(since = "0.1.0", note = "Please use `submit` instead")]
 pub async fn emulate(request: Request) -> (StatusCode, Json<Value>) {
-    // curl -v -H "Content-Type: x-www-form-urlencoded" -X POST 10.31.4.69:3000/emulate -d @bell.qasm -d shots=1000 -d format=json
+    // curl -v -H "Content-Type: x-www-form-urlencoded" -X POST
+    // 10.31.4.69:3000/emulate -d @bell.qasm -d shots=1000 -d format=json
     match request.headers().get(header::CONTENT_TYPE) {
         Some(content_type) if content_type == "application/x-www-form-urlencoded" => {
             let Form(emulate_message) = request.extract().await.unwrap();
@@ -148,9 +162,18 @@ pub async fn emulate(request: Request) -> (StatusCode, Json<Value>) {
     }
 }
 
-pub async fn init_db(state: State<ServerState>) -> (StatusCode, Json<Value>) {
+/// Initialize the qthread with num of physical agents
+pub async fn init_qthread(
+    state: State<ServerState>,
+    query_message: Query<AgentNum>,
+) -> (StatusCode, Json<Value>) {
     let db = &state.db;
-    match service::resource::Resource::random_init_physical_agents(db, 10).await {
+    match service::resource::Resource::random_init_physical_agents(
+        db,
+        query_message.0.agent_num.parse::<u32>().unwrap(),
+    )
+    .await
+    {
         Ok(_) => (
             StatusCode::OK,
             Json(json!({"Message": "Physical Agents added successfully"})),
@@ -162,10 +185,12 @@ pub async fn init_db(state: State<ServerState>) -> (StatusCode, Json<Value>) {
     }
 }
 
+/// Consume the task when the server receives a submit request
 pub async fn consume_task(
     Form(emulate_message): Form<EmulateMessage>,
     state: State<ServerState>,
 ) -> (StatusCode, Json<Value>) {
+    // get qasm simulation options
     let options = qasmsim::options::Options {
         shots: if emulate_message.shots == 0 {
             None
@@ -180,6 +205,7 @@ pub async fn consume_task(
         ..Default::default()
     };
 
+    // add this task to the database
     let task = service::qthread::Qthread::submit_task(
         &state.db,
         entity::task::Model {
@@ -199,6 +225,7 @@ pub async fn consume_task(
     .await
     .unwrap();
 
+    // If there is an available agent, run the task. Otherwise, return the task id
     match task.status {
         sea_orm_active_enums::TaskStatus::Running => {
             let result = qasmsim::run(&task.source, options.shots);
@@ -206,12 +233,15 @@ pub async fn consume_task(
                 &state.db,
                 task.id,
                 match result {
+                    // If the task is simulated successfully, update the task status to succeeded.
+                    // Otherwise, update the task status to failed/
                     Ok(ref result) => (
                         Some(qasmsim::print_result(result, &options)),
                         sea_orm_active_enums::TaskStatus::Succeeded,
                         sea_orm_active_enums::AgentStatus::Succeeded,
                     ),
                     Err(ref err) => (
+                        // Add the error message to the result field
                         Some(format!("{}", err)),
                         sea_orm_active_enums::TaskStatus::Failed,
                         sea_orm_active_enums::AgentStatus::Failed,
@@ -225,6 +255,7 @@ pub async fn consume_task(
                 Ok(result) => (
                     StatusCode::OK,
                     match options.format {
+                        // Merge the result with the task id
                         qasmsim::options::Format::Json => Json(merge_json(
                             &serde_json::from_str::<Value>(&qasmsim::print_result(
                                 &result, &options,
@@ -242,6 +273,7 @@ pub async fn consume_task(
                         })),
                     },
                 ),
+                // The simulation is failed
                 Err(err) => (
                     StatusCode::BAD_REQUEST,
                     Json(json!({
@@ -252,7 +284,6 @@ pub async fn consume_task(
                 ),
             }
         }
-
         sea_orm_active_enums::TaskStatus::NotStarted => (
             StatusCode::BAD_REQUEST,
             Json(json!({
@@ -260,18 +291,23 @@ pub async fn consume_task(
                 "task_id": task.id
             })),
         ),
-        _ => (
+        status => (
             StatusCode::BAD_REQUEST,
-            Json(json!({"Error": "Task status is not valid"})),
+            Json(json!({
+                "Error": format!("Task status {:?} is not valid", status),
+                "task_id": task.id
+            })),
         ),
     }
 }
 
+/// Consume the task when there are some waiting tasks and available agents
 pub async fn consume_task_back(db: &DbConn, waiting_task: entity::task::Model) {
     let task = service::qthread::Qthread::submit_task_without_add(&db, waiting_task)
         .await
         .unwrap();
 
+    // If there is an available agent, run the task. Otherwise, do nothing
     match task.status {
         sea_orm_active_enums::TaskStatus::Running => {
             let qasm_option = model_option_to_qasm_option(
@@ -280,7 +316,8 @@ pub async fn consume_task_back(db: &DbConn, waiting_task: entity::task::Model) {
                     .unwrap()
                     .unwrap(),
             );
-
+            
+            // Qasm simulation
             let result = qasmsim::run(&task.source, qasm_option.shots);
             service::qthread::Qthread::finish_task(
                 &db,
@@ -308,8 +345,10 @@ pub async fn consume_task_back(db: &DbConn, waiting_task: entity::task::Model) {
     }
 }
 
+/// Submit the task to the server
 pub async fn submit(state: State<ServerState>, request: Request) -> (StatusCode, Json<Value>) {
     match request.headers().get(header::CONTENT_TYPE) {
+        // If the content type is correct, consume the task
         Some(content_type) if content_type == "application/x-www-form-urlencoded" => {
             let Form(emulate_message) = request.extract().await.unwrap();
             consume_task(Form(emulate_message), state).await
@@ -323,6 +362,7 @@ pub async fn submit(state: State<ServerState>, request: Request) -> (StatusCode,
     }
 }
 
+/// Get the task status by task id
 pub async fn get_task(
     state: State<ServerState>,
     query_message: Query<TaskID>,

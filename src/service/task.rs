@@ -51,7 +51,8 @@ impl Task {
             .await
     }
 
-    // get all waiting tasks if num is None or num is larger than the number of waiting tasks
+    // get all waiting tasks if num is None or num is larger than the number of
+    // waiting tasks
     pub async fn get_waiting_task(
         db: &DbConn,
         num: Option<u64>,
