@@ -12,7 +12,7 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 
 #[derive(Deserialize)]
-struct EmulateMessage {
+pub struct EmulateMessage {
     qasm: String,
     shots: usize,
     format: String,
