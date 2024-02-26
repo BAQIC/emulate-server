@@ -24,3 +24,5 @@ uuid = { version = "1.7.0", features = ["v4",                # Lets you generate
     "fast-rng",          # Use a faster (but still sufficiently random) RNG
     "macro-diagnostics", # Enable better diagnostics for compile-time UUIDs
     ]}
+log4rs = {version = "1.3.0", features = ["threshold_filter"]}
+log = "0.4.20"

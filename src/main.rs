@@ -1,15 +1,19 @@
 use axum::{routing, Router};
 use dotenv;
+use log::info;
+use log4rs;
 use migration::{Migrator, MigratorTrait};
-pub use sea_orm::{Database, DbConn};
-
+pub use sea_orm::{ConnectOptions, Database, DbConn};
 pub mod entity;
 pub mod router;
 pub mod service;
 
 fn main() {
+    log4rs::init_file("log4rs.yaml", Default::default()).unwrap();
+
     // Start a thread to consume waiting tasks, and submit them to idle agents
     std::thread::spawn(|| {
+        info!("Consume waiting task thread started");
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async {
             // connect to the database
@@ -17,7 +21,13 @@ fn main() {
             let base_url =
                 std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".to_owned());
 
-            let db: DbConn = Database::connect(base_url).await.unwrap();
+            info!("Consume waiting task thread connect database: {}", base_url);
+
+            // disable sqlx logging
+            let mut connection_options = ConnectOptions::new(base_url);
+            connection_options.sqlx_logging(false);
+
+            let db: DbConn = Database::connect(connection_options).await.unwrap();
             Migrator::fresh(&db).await.unwrap();
 
             loop {
@@ -36,6 +46,10 @@ fn main() {
 
                 // for each waiting task, submit it to an idle agent
                 for waiting_task in waiting_tasks {
+                    info!(
+                        "Consume waiting task thread submit task: {:?}",
+                        waiting_task.id
+                    );
                     let db = db.clone();
                     tokio::spawn(async move {
                         router::consume_task_back(&db, waiting_task).await;
@@ -50,12 +64,19 @@ fn main() {
 
     let axum_rt = tokio::runtime::Runtime::new().unwrap();
     axum_rt.block_on(async {
+        info!("Axum server started");
         // connect to the database
         dotenv::from_filename(".env").ok();
         let base_url =
             std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".to_owned());
 
-        let db: DbConn = Database::connect(base_url).await.unwrap();
+        info!("Axum server connect database: {}", base_url);
+
+        // disable sqlx logging
+        let mut connection_options = ConnectOptions::new(base_url);
+        connection_options.sqlx_logging(false);
+
+        let db: DbConn = Database::connect(connection_options).await.unwrap();
         Migrator::fresh(&db).await.unwrap();
 
         let state = router::ServerState { db };
@@ -70,6 +91,10 @@ fn main() {
             .with_state(state);
 
         let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
+        info!(
+            "Axum server listening on: {}",
+            listener.local_addr().unwrap()
+        );
         axum::serve(listener, emulator_router).await.unwrap();
     })
 }
