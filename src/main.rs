@@ -1,7 +1,5 @@
 use axum::{routing, Router};
-use dotenv;
 use log::info;
-use log4rs;
 use migration::{Migrator, MigratorTrait};
 pub use sea_orm::{ConnectOptions, Database, DbConn};
 pub mod entity;
