@@ -2,7 +2,7 @@ use super::entity;
 use super::entity::sea_orm_active_enums;
 use super::service;
 use axum::{
-    extract::{Query, Request, State},
+    extract::{Path, Query, Request, State},
     http::{header, StatusCode},
     Form, Json, RequestExt,
 };
@@ -10,8 +10,9 @@ use log::{error, info};
 use sea_orm::DbConn;
 use serde::Deserialize;
 use serde_json::{json, Value};
+use uuid::Uuid;
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct EmulateMessage {
     qasm: String,
     shots: usize,
@@ -300,12 +301,12 @@ pub async fn consume_task(
                                 ))
                                 .unwrap(),
                                 vec![
-                                    ("Message".to_owned(), "Task is succeeded".to_owned()),
+                                    ("status".to_owned(), "succeeded".to_owned()),
                                     ("task_id".to_owned(), task.id.to_string()),
                                 ],
                             )),
                             qasmsim::options::Format::Tabular => Json(json!({
-                                "Message": "Task is succeeded",
+                                "status": "succeeded",
                                 "Result": Some(qasmsim::print_result(&result, &options)),
                                 "task_id": task.id
                             })),
@@ -318,8 +319,8 @@ pub async fn consume_task(
                     (
                         StatusCode::BAD_REQUEST,
                         Json(json!({
-                            "Message": "Task is failed",
-                            "Result": Some(format!("{}", err)),
+                            "status": "failed",
+                            "result": Some(format!("{}", err)),
                             "task_id": task.id
                         })),
                     )
@@ -331,7 +332,7 @@ pub async fn consume_task(
             (
                 StatusCode::BAD_REQUEST,
                 Json(json!({
-                    "Message": "There is no available agent to run the task",
+                    "status": "waiting",
                     "task_id": task.id
                 })),
             )
@@ -341,6 +342,7 @@ pub async fn consume_task(
             (
                 StatusCode::BAD_REQUEST,
                 Json(json!({
+                    "status": "error",
                     "Error": format!("Task status {:?} is not valid", status),
                     "task_id": task.id
                 })),
@@ -406,35 +408,40 @@ pub async fn consume_task_back(db: &DbConn, waiting_task: entity::task::Model) {
 pub async fn submit(state: State<ServerState>, request: Request) -> (StatusCode, Json<Value>) {
     match request.headers().get(header::CONTENT_TYPE) {
         // If the content type is correct, consume the task
-        Some(content_type) if content_type == "application/x-www-form-urlencoded" => {
-            let Form(emulate_message) = request.extract().await.unwrap();
-            consume_task(Form(emulate_message), state).await
-        }
+        Some(content_type) => match content_type.to_str().unwrap() {
+            "application/x-www-form-urlencoded" => {
+                let Form(emulate_message) = request.extract().await.unwrap();
+                consume_task(Form(emulate_message), state).await
+            }
+            "application/json" => {
+                let Json::<EmulateMessage>(emulate_message) = request.extract().await.unwrap();
+                consume_task(Form(emulate_message), state).await
+            }
+            _ => {
+                error!(
+                    "Submit request failed: content type {:?} not support",
+                    content_type
+                );
+                (
+                    StatusCode::BAD_REQUEST,
+                    Json(json!({"Error": format!("content type {:?} not support", content_type)})),
+                )
+            }
+        },
         _ => {
-            error!(
-                "Submit request failed: content type {:?} not specified / not support",
-                request.headers().get(header::CONTENT_TYPE).unwrap()
-            );
+            error!("Submit request failed: content type not specified");
             (
                 StatusCode::BAD_REQUEST,
-                Json(
-                    json!({"Error": format!("content type {:?} not specified / not support", request.headers().get(header::CONTENT_TYPE).unwrap())}),
-                ),
+                Json(json!({"Error": format!("content type not specified")})),
             )
         }
     }
 }
 
-/// Get the task status by task id
-pub async fn get_task(
-    state: State<ServerState>,
-    query_message: Query<TaskID>,
-) -> (StatusCode, Json<Value>) {
-    info!("Get task status by task id: {:?}", query_message.task_id);
-    let db = &state.db;
-    match service::task::Task::get_task(db, uuid::Uuid::parse_str(&query_message.task_id).unwrap())
-        .await
-    {
+pub async fn _get_task(db: &DbConn, task_id: Uuid) -> (StatusCode, Json<Value>) {
+    info!("Get task status by task id: {:?}", task_id);
+    let db = db;
+    match service::task::Task::get_task(db, task_id).await {
         Ok(task) => match task {
             Some(task) => match task.status {
                 sea_orm_active_enums::TaskStatus::Running => {
@@ -442,7 +449,7 @@ pub async fn get_task(
                     (
                         StatusCode::OK,
                         Json(json!({
-                            "Message": "Task is running",
+                            "status": "running",
                             "task_id": task.id
                         })),
                     )
@@ -452,7 +459,7 @@ pub async fn get_task(
                     (
                         StatusCode::OK,
                         Json(json!({
-                            "Message": "Task is waiting",
+                            "status": "waiting",
                             "task_id": task.id
                         })),
                     )
@@ -464,7 +471,7 @@ pub async fn get_task(
                         Json(merge_json(
                             &serde_json::from_str::<Value>(&task.result.unwrap()).unwrap(),
                             vec![
-                                ("Message".to_owned(), "Task is succeeded".to_owned()),
+                                ("status".to_owned(), "succeeded".to_owned()),
                                 ("task_id".to_owned(), task.id.to_string()),
                             ],
                         )),
@@ -475,7 +482,7 @@ pub async fn get_task(
                     (
                         StatusCode::OK,
                         Json(json!({
-                            "Message": "Task is failed",
+                            "status": "failed",
                             "task_id": task.id,
                             "result": task.result.unwrap()
                         })),
@@ -483,24 +490,44 @@ pub async fn get_task(
                 }
             },
             None => {
-                info!("Task with id {:?} not found", query_message.task_id);
+                info!("Task with id {:?} not found", task_id);
                 (
                     StatusCode::BAD_REQUEST,
-                    Json(
-                        json!({"Error": format!("Task with id {} not found", query_message.task_id)}),
-                    ),
+                    Json(json!({
+                        "status": "error",
+                        "Error": format!("Task with id {} not found", task_id)
+                    })),
                 )
             }
         },
         Err(err) => {
-            error!(
-                "Get task {:?} status failed: {}",
-                query_message.task_id, err
-            );
+            error!("Get task {:?} status failed: {}", task_id, err);
             (
                 StatusCode::BAD_REQUEST,
-                Json(json!({"Error": format!("{}", err)})),
+                Json(json!({
+                    "status": "error",
+                    "Error": format!("{}", err)
+                })),
             )
         }
     }
+}
+
+/// Get the task status by task id
+pub async fn get_task(
+    state: State<ServerState>,
+    query_message: Query<TaskID>,
+) -> (StatusCode, Json<Value>) {
+    _get_task(
+        &state.db,
+        uuid::Uuid::parse_str(&query_message.task_id).unwrap(),
+    )
+    .await
+}
+
+pub async fn get_task_with_id(
+    state: State<ServerState>,
+    Path(task_id): Path<Uuid>,
+) -> (StatusCode, Json<Value>) {
+    _get_task(&state.db, task_id).await
 }

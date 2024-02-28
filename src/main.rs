@@ -86,6 +86,7 @@ fn main() {
             .route("/submit", routing::post(router::submit))
             .route("/emulate", routing::post(router::emulate))
             .route("/get_task", routing::get(router::get_task))
+            .route("/get_task/:id", routing::get(router::get_task_with_id))
             .with_state(state);
 
         let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
