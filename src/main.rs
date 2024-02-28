@@ -1,3 +1,4 @@
+#![allow(deprecated)]
 use axum::{routing, Router};
 use log::info;
 use migration::{Migrator, MigratorTrait};
