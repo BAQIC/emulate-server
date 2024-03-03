@@ -19,5 +19,6 @@ RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.bfsu.edu.cn/g' /etc/apk/repositorie
     && git clone https://github.com/BAQIC/emulate-server.git
 
 WORKDIR /workspace/emulate-server
+RUN cargo fetch
 
 ENTRYPOINT [ "cargo", "run" ]

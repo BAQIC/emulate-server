@@ -13,7 +13,7 @@ docker run -it --name=quantum-emulator-pg -e POSTGRES_PASSWORD=quantum-emulator 
 
 To run the emulate-server, please use the following command:
 ```bash
-docker run -d --network=host --name=emulate-server emulate-server:latest
+docker run -d --network=host --name=emulate-server --restart=always emulate-server:latest
 ```
 
 Then, you can use `emulate-client` to submit jobs to the server.
