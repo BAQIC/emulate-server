@@ -10,13 +10,7 @@ impl Options {
     ) -> Result<options::Model, sea_orm::prelude::DbErr> {
         options::ActiveModel {
             id: ActiveValue::set(options.id.to_owned()),
-            format: ActiveValue::set(options.format.to_owned()),
-            binary: ActiveValue::set(options.binary.to_owned()),
-            hexadecimal: ActiveValue::set(options.hexadecimal.to_owned()),
-            integer: ActiveValue::set(options.integer.to_owned()),
-            statevector: ActiveValue::set(options.statevector.to_owned()),
-            probabilities: ActiveValue::set(options.probabilities.to_owned()),
-            times: ActiveValue::set(options.times.to_owned()),
+            agent_type: ActiveValue::set(options.agent_type.to_owned()),
             shots: ActiveValue::set(options.shots.to_owned()),
         }
         .insert(db)
@@ -25,20 +19,16 @@ impl Options {
 
     pub async fn add_qasm_options(
         db: &DbConn,
-        options: &qasmsim::options::Options,
+        options: &crate::router::Options,
     ) -> Result<options::Model, sea_orm::prelude::DbErr> {
         let options = options::Model {
             id: uuid::Uuid::new_v4(),
-            format: match options.format {
-                qasmsim::options::Format::Json => sea_orm_active_enums::Format::Json,
-                qasmsim::options::Format::Tabular => sea_orm_active_enums::Format::Tabular,
+            agent_type: match options.agent_type {
+                crate::router::AgentType::QppSV => sea_orm_active_enums::AgentType::QppSv,
+                crate::router::AgentType::QppDM => sea_orm_active_enums::AgentType::QppDm,
+                crate::router::AgentType::QASMSim => sea_orm_active_enums::AgentType::QasmSim,
+                crate::router::AgentType::CUDAQ => sea_orm_active_enums::AgentType::Cudaq,
             },
-            binary: options.binary,
-            hexadecimal: options.hexadecimal,
-            integer: options.integer,
-            statevector: options.statevector,
-            probabilities: options.probabilities,
-            times: options.times,
             shots: options.shots.map(|x| x as i32),
         };
         Options::add_options(db, options).await

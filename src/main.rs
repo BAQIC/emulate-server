@@ -19,8 +19,11 @@ fn main() {
             dotenv::from_filename(".env").ok();
             let base_url =
                 std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".to_owned());
+            let agent_addr =
+                std::env::var("AGENT_ADDR").unwrap_or_else(|_| "http://127.0.0.1:3004".to_owned());
 
             info!("Consume waiting task thread connect database: {}", base_url);
+            info!("Agent address is: {}", agent_addr);
 
             // disable sqlx logging
             let mut connection_options = ConnectOptions::new(base_url);
@@ -50,13 +53,14 @@ fn main() {
                         waiting_task.id
                     );
                     let db = db.clone();
+                    let agent_addr = agent_addr.clone();
                     tokio::spawn(async move {
-                        router::consume_task_back(&db, waiting_task).await;
+                        router::consume_task_back(&db, &agent_addr, waiting_task).await;
                     });
                 }
 
                 // every 5 seconds to check if there are waiting tasks
-                tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
             }
         });
     });
@@ -68,8 +72,11 @@ fn main() {
         dotenv::from_filename(".env").ok();
         let base_url =
             std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".to_owned());
+        let agent_addr =
+            std::env::var("AGENT_ADDR").unwrap_or_else(|_| "http://127.0.0.1:3004".to_owned());
 
         info!("Axum server connect database: {}", base_url);
+        info!("Agent address is: {}", agent_addr);
 
         // disable sqlx logging
         let mut connection_options = ConnectOptions::new(base_url);
@@ -78,14 +85,13 @@ fn main() {
         let db: DbConn = Database::connect(connection_options).await.unwrap();
         Migrator::fresh(&db).await.unwrap();
 
-        let state = router::ServerState { db };
+        let state = router::ServerState { db, agent_addr };
 
         // Start the web server
         let emulator_router = Router::new()
             .route("/", routing::get(router::root))
             .route("/init", routing::get(router::init_qthread))
             .route("/submit", routing::post(router::submit))
-            .route("/emulate", routing::post(router::emulate))
             .route("/get_task", routing::get(router::get_task))
             .route("/get_task/:id", routing::get(router::get_task_with_id))
             .with_state(state);

@@ -8,23 +8,19 @@ use sea_orm_migration::{
 pub struct Migration;
 
 #[derive(DeriveIden, EnumIter)]
-pub enum Format {
+pub enum AgentType {
     Table,
-    Json,
-    Tabular,
+    QppSV,
+    QppDM,
+    QASMSim,
+    CUDAQ,
 }
 
 #[derive(DeriveIden)]
 pub enum Options {
     Table,
     Id,
-    Format,
-    Binary,
-    Hexadecimal,
-    Integer,
-    Statevector,
-    Probabilities,
-    Times,
+    AgentType,
     Shots,
 }
 
@@ -34,8 +30,8 @@ impl MigrationTrait for Migration {
         manager
             .create_type(
                 Type::create()
-                    .as_enum(Format::Table)
-                    .values(Format::iter().skip(1))
+                    .as_enum(AgentType::Table)
+                    .values(AgentType::iter().skip(1))
                     .to_owned(),
             )
             .await?;
@@ -52,16 +48,10 @@ impl MigrationTrait for Migration {
                             .unique_key(),
                     )
                     .col(
-                        ColumnDef::new(Options::Format)
-                            .enumeration(Format::Table, Format::iter().skip(1))
+                        ColumnDef::new(Options::AgentType)
+                            .enumeration(AgentType::Table, AgentType::iter().skip(1))
                             .not_null(),
                     )
-                    .col(ColumnDef::new(Options::Binary).boolean().not_null())
-                    .col(ColumnDef::new(Options::Hexadecimal).boolean().not_null())
-                    .col(ColumnDef::new(Options::Integer).boolean().not_null())
-                    .col(ColumnDef::new(Options::Statevector).boolean().not_null())
-                    .col(ColumnDef::new(Options::Probabilities).boolean().not_null())
-                    .col(ColumnDef::new(Options::Times).boolean().not_null())
                     .col(ColumnDef::new(Options::Shots).unsigned().null())
                     .to_owned(),
             )

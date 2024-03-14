@@ -7,6 +7,7 @@ use axum::{
     Form, Json, RequestExt,
 };
 use log::{error, info};
+use reqwest::Response;
 use sea_orm::DbConn;
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -14,14 +15,15 @@ use uuid::Uuid;
 
 #[derive(Deserialize, Debug)]
 pub struct EmulateMessage {
-    qasm: String,
+    code: String,
     shots: usize,
-    format: String,
+    agent: AgentType,
 }
 
 #[derive(Clone)]
 pub struct ServerState {
     pub db: DbConn,
+    pub agent_addr: String,
 }
 
 #[derive(Deserialize)]
@@ -34,23 +36,47 @@ pub struct AgentNum {
     agent_num: String,
 }
 
-/// Convert entity::Model::Options to qasmsim::options::Options
-pub fn model_option_to_qasm_option(option: entity::options::Model) -> qasmsim::options::Options {
-    qasmsim::options::Options {
+#[derive(Deserialize, Debug, Clone, Copy)]
+pub enum AgentType {
+    #[serde(rename = "qpp-sv")]
+    QppSV,
+    #[serde(rename = "qpp-dm")]
+    QppDM,
+    #[serde(rename = "qasmsim")]
+    QASMSim,
+    #[serde(rename = "cudaq")]
+    CUDAQ,
+}
+
+impl std::fmt::Display for AgentType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            AgentType::QppSV => write!(f, "qpp-sv"),
+            AgentType::QppDM => write!(f, "qpp-dm"),
+            AgentType::QASMSim => write!(f, "qasmsim"),
+            AgentType::CUDAQ => write!(f, "cudaq"),
+        }
+    }
+}
+
+pub struct Options {
+    pub shots: Option<usize>,
+    pub agent_type: AgentType,
+}
+
+/// Convert entity::Model::Options to Options
+pub fn model_option_to_qasm_option(option: entity::options::Model) -> Options {
+    Options {
         shots: match option.shots {
             Some(shot_num) => Some(shot_num as usize),
             None => None,
         },
-        format: match option.format {
-            sea_orm_active_enums::Format::Json => qasmsim::options::Format::Json,
-            sea_orm_active_enums::Format::Tabular => qasmsim::options::Format::Tabular,
+        agent_type: match option.agent_type {
+            sea_orm_active_enums::AgentType::QppSv => AgentType::QppSV,
+            sea_orm_active_enums::AgentType::QppDm => AgentType::QppDM,
+            sea_orm_active_enums::AgentType::QasmSim => AgentType::QASMSim,
+            sea_orm_active_enums::AgentType::Cudaq => AgentType::CUDAQ,
         },
-        binary: option.binary,
-        hexadecimal: option.hexadecimal,
-        integer: option.integer,
-        statevector: option.statevector,
-        probabilities: option.probabilities,
-        times: option.times,
     }
 }
 
@@ -67,6 +93,25 @@ pub fn merge_json(v: &Value, fields: Vec<(String, String)>) -> Value {
         }
         v => v.clone(),
     }
+}
+
+pub async fn invoke_agent(
+    address: &str,
+    code: &str,
+    shots: usize,
+    agent: AgentType,
+) -> Result<Response, reqwest::Error> {
+    let body = [
+        ("code", code.to_string()),
+        ("shots", shots.to_string()),
+        ("agent", agent.to_string()),
+    ];
+
+    reqwest::Client::new()
+        .post(address)
+        .form(&body)
+        .send()
+        .await
 }
 
 /// This method is used to test the server
@@ -109,75 +154,6 @@ pub async fn root() -> (StatusCode, Json<Value>) {
             (
                 StatusCode::BAD_REQUEST,
                 Json(json!({"Error": format!("{}", err)})),
-            )
-        }
-    }
-}
-
-/// Direct consume the task and return the result without database operation
-#[deprecated(since = "0.1.0", note = "Please use `comsume_task` instead")]
-async fn consume_body(Form(emulate_message): Form<EmulateMessage>) -> (StatusCode, Json<Value>) {
-    info!("Consume body in emulate request");
-    let options = qasmsim::options::Options {
-        shots: if emulate_message.shots == 0 {
-            None
-        } else {
-            Some(emulate_message.shots)
-        },
-        format: match emulate_message.format.as_str() {
-            "json" => qasmsim::options::Format::Json,
-            "tabular" => qasmsim::options::Format::Tabular,
-            _ => qasmsim::options::Format::Json,
-        },
-        ..Default::default()
-    };
-
-    match qasmsim::run(&emulate_message.qasm, options.shots) {
-        Ok(result) => {
-            info!("Consume body in emulate request success");
-            (
-                StatusCode::OK,
-                match options.format {
-                    qasmsim::options::Format::Json => Json(
-                        serde_json::from_str::<Value>(&qasmsim::print_result(&result, &options))
-                            .unwrap(),
-                    ),
-                    qasmsim::options::Format::Tabular => {
-                        Json(json!({"Result": qasmsim::print_result(&result, &options)}))
-                    }
-                },
-            )
-        }
-        Err(err) => {
-            error!("Consume body in emulate request failed: {}", err);
-            (
-                StatusCode::BAD_REQUEST,
-                Json(json!({"Error": format!("{}", err)})),
-            )
-        }
-    }
-}
-
-/// Emulate the quantum circuit and return the result with database operation
-#[deprecated(since = "0.1.0", note = "Please use `submit` instead")]
-pub async fn emulate(request: Request) -> (StatusCode, Json<Value>) {
-    // curl -v -H "Content-Type: x-www-form-urlencoded" -X POST
-    // 10.31.4.69:3000/emulate -d @bell.qasm -d shots=1000 -d format=json
-    match request.headers().get(header::CONTENT_TYPE) {
-        Some(content_type) if content_type == "application/x-www-form-urlencoded" => {
-            let Form(emulate_message) = request.extract().await.unwrap();
-            consume_body(Form(emulate_message)).await
-        }
-        _ => {
-            error!(
-                "Emulate request failed: content type {:?} not specified / not support",
-                request.headers().get(header::CONTENT_TYPE).unwrap()
-            );
-            (
-                StatusCode::BAD_REQUEST,
-                Json(
-                    json!({"Error": format!("content type {:?} not specified / not support", request.headers().get(header::CONTENT_TYPE).unwrap())}),
-                ),
             )
         }
     }
@@ -226,18 +202,13 @@ pub async fn consume_task(
 ) -> (StatusCode, Json<Value>) {
     info!("Consume task in submit request");
     // get qasm simulation options
-    let options = qasmsim::options::Options {
+    let options = Options {
         shots: if emulate_message.shots == 0 {
             None
         } else {
             Some(emulate_message.shots)
         },
-        format: match emulate_message.format.as_str() {
-            "json" => qasmsim::options::Format::Json,
-            "tabular" => qasmsim::options::Format::Tabular,
-            _ => qasmsim::options::Format::Json,
-        },
-        ..Default::default()
+        agent_type: emulate_message.agent,
     };
 
     // add this task to the database
@@ -249,7 +220,7 @@ pub async fn consume_task(
                 .await
                 .unwrap()
                 .id,
-            source: emulate_message.qasm.clone(),
+            source: emulate_message.code.clone(),
             status: sea_orm_active_enums::TaskStatus::NotStarted,
             result: None,
             created_time: chrono::Utc::now().naive_utc(),
@@ -265,21 +236,39 @@ pub async fn consume_task(
     // If there is an available agent, run the task. Otherwise, return the task id
     match task.status {
         sea_orm_active_enums::TaskStatus::Running => {
-            let result = qasmsim::run(&task.source, options.shots);
+            let result = invoke_agent(
+                &state.agent_addr,
+                &emulate_message.code,
+                emulate_message.shots,
+                emulate_message.agent,
+            )
+            .await;
+
+            let (status, value) = if result.is_ok() {
+                (
+                    Some(result.as_ref().unwrap().status()),
+                    match result.unwrap().json::<Value>().await {
+                        Ok(v) => v,
+                        Err(err) => json!({"Error": format!("{}", err)}),
+                    },
+                )
+            } else {
+                (None, json!({"Error": format!("{}", result.unwrap_err())}))
+            };
+
             service::qthread::Qthread::finish_task(
                 &state.db,
                 task.id,
-                match result {
+                match status {
                     // If the task is simulated successfully, update the task status to succeeded.
                     // Otherwise, update the task status to failed/
-                    Ok(ref result) => (
-                        Some(qasmsim::print_result(result, &options)),
+                    Some(s) if s == reqwest::StatusCode::OK => (
+                        Some(serde_json::to_string_pretty(&value).expect("json pretty print")),
                         sea_orm_active_enums::TaskStatus::Succeeded,
                         sea_orm_active_enums::AgentStatus::Succeeded,
                     ),
-                    Err(ref err) => (
-                        // Add the error message to the result field
-                        Some(format!("{}", err)),
+                    Some(_) | None => (
+                        Some(serde_json::to_string_pretty(&value).expect("json pretty print")),
                         sea_orm_active_enums::TaskStatus::Failed,
                         sea_orm_active_enums::AgentStatus::Failed,
                     ),
@@ -288,41 +277,31 @@ pub async fn consume_task(
             .await
             .unwrap();
 
-            match result {
-                Ok(result) => {
+            match status {
+                Some(s) if s == reqwest::StatusCode::OK => {
                     info!("Task {:?} is succeeded", task.id);
                     (
                         StatusCode::OK,
-                        match options.format {
-                            // Merge the result with the task id
-                            qasmsim::options::Format::Json => Json(merge_json(
-                                &serde_json::from_str::<Value>(&qasmsim::print_result(
-                                    &result, &options,
-                                ))
-                                .unwrap(),
-                                vec![
-                                    ("status".to_owned(), "succeeded".to_owned()),
-                                    ("task_id".to_owned(), task.id.to_string()),
-                                ],
-                            )),
-                            qasmsim::options::Format::Tabular => Json(json!({
-                                "status": "succeeded",
-                                "Result": Some(qasmsim::print_result(&result, &options)),
-                                "task_id": task.id
-                            })),
-                        },
+                        Json(merge_json(
+                            &value,
+                            vec![
+                                ("status".to_string(), "succeeded".to_string()),
+                                ("task_id".to_string(), task.id.to_string()),
+                            ],
+                        )),
                     )
                 }
-                // The simulation is failed
-                Err(err) => {
-                    error!("Task {:?} is failed: {}", task.id, err);
+                Some(_) | None => {
+                    error!("Task {:?} is failed", task.id);
                     (
                         StatusCode::BAD_REQUEST,
-                        Json(json!({
-                            "status": "failed",
-                            "result": Some(format!("{}", err)),
-                            "task_id": task.id
-                        })),
+                        Json(merge_json(
+                            &value,
+                            vec![
+                                ("status".to_string(), "failed".to_string()),
+                                ("task_id".to_string(), task.id.to_string()),
+                            ],
+                        )),
                     )
                 }
             }
@@ -352,7 +331,7 @@ pub async fn consume_task(
 }
 
 /// Consume the task when there are some waiting tasks and available agents
-pub async fn consume_task_back(db: &DbConn, waiting_task: entity::task::Model) {
+pub async fn consume_task_back(db: &DbConn, agent_addr: &str, waiting_task: entity::task::Model) {
     info!("Consume task in consume waiting task thread");
     let task = service::qthread::Qthread::submit_task_without_add(&db, waiting_task)
         .await
@@ -361,31 +340,55 @@ pub async fn consume_task_back(db: &DbConn, waiting_task: entity::task::Model) {
     // If there is an available agent, run the task. Otherwise, do nothing
     match task.status {
         sea_orm_active_enums::TaskStatus::Running => {
-            let qasm_option = model_option_to_qasm_option(
+            let option = model_option_to_qasm_option(
                 service::options::Options::get_option(&db, task.option_id)
                     .await
                     .unwrap()
                     .unwrap(),
             );
 
+            let result = invoke_agent(
+                agent_addr,
+                &task.source,
+                match option.shots {
+                    Some(s) => s,
+                    None => 0,
+                },
+                option.agent_type,
+            )
+            .await;
+
+            let (status, value) = if result.is_ok() {
+                (
+                    Some(result.as_ref().unwrap().status()),
+                    match result.unwrap().json::<Value>().await {
+                        Ok(v) => v,
+                        Err(err) => json!({"Error": format!("{}", err)}),
+                    },
+                )
+            } else {
+                (None, json!({"Error": format!("{}", result.unwrap_err())}))
+            };
+
             // Qasm simulation
-            let result = qasmsim::run(&task.source, qasm_option.shots);
             service::qthread::Qthread::finish_task(
                 &db,
                 task.id,
-                match result {
-                    Ok(result) => {
+                match status {
+                    // If the task is simulated successfully, update the task status to succeeded.
+                    // Otherwise, update the task status to failed
+                    Some(s) if s == reqwest::StatusCode::OK => {
                         info!("Task {:?} is succeeded", task.id);
                         (
-                            Some(qasmsim::print_result(&result, &qasm_option)),
+                            Some(serde_json::to_string_pretty(&value).expect("json pretty print")),
                             sea_orm_active_enums::TaskStatus::Succeeded,
                             sea_orm_active_enums::AgentStatus::Succeeded,
                         )
                     }
-                    Err(err) => {
-                        error!("Task {:?} is failed: {}", task.id, err);
+                    Some(_) | None => {
+                        error!("Task {:?} is failed", task.id);
                         (
-                            Some(format!("{}", err)),
+                            Some(serde_json::to_string_pretty(&value).expect("json pretty print")),
                             sea_orm_active_enums::TaskStatus::Failed,
                             sea_orm_active_enums::AgentStatus::Failed,
                         )
@@ -481,11 +484,13 @@ pub async fn _get_task(db: &DbConn, task_id: Uuid) -> (StatusCode, Json<Value>) 
                     info!("Task {:?} is failed", task.id);
                     (
                         StatusCode::OK,
-                        Json(json!({
-                            "status": "failed",
-                            "task_id": task.id,
-                            "result": task.result.unwrap()
-                        })),
+                        Json(merge_json(
+                            &serde_json::from_str::<Value>(&task.result.unwrap()).unwrap(),
+                            vec![
+                                ("status".to_owned(), "failed".to_owned()),
+                                ("task_id".to_owned(), task.id.to_string()),
+                            ],
+                        )),
                     )
                 }
             },
@@ -494,8 +499,9 @@ pub async fn _get_task(db: &DbConn, task_id: Uuid) -> (StatusCode, Json<Value>) 
                 (
                     StatusCode::BAD_REQUEST,
                     Json(json!({
+                        "task_id": task_id,
                         "status": "error",
-                        "Error": format!("Task with id {} not found", task_id)
+                        "Error": "Task not found"
                     })),
                 )
             }
@@ -505,6 +511,7 @@ pub async fn _get_task(db: &DbConn, task_id: Uuid) -> (StatusCode, Json<Value>) 
             (
                 StatusCode::BAD_REQUEST,
                 Json(json!({
+                    "task_id": task_id,
                     "status": "error",
                     "Error": format!("{}", err)
                 })),
