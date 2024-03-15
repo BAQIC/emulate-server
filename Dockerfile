@@ -11,4 +11,4 @@ WORKDIR /workspace/emulate-server
 RUN cargo build --release
 RUN mv target/release/emulate-server /bin/emulate-server && cargo clean
 
-ENTRYPOINT [ "cargo", "run" ]
+ENTRYPOINT [ "/bin/emulate-server" ]
