@@ -89,7 +89,6 @@ fn main() {
 
         // Start the web server
         let emulator_router = Router::new()
-            .route("/", routing::get(router::root))
             .route("/init", routing::get(router::init_qthread))
             .route("/submit", routing::post(router::submit))
             .route("/get_task", routing::get(router::get_task))

@@ -114,51 +114,6 @@ pub async fn invoke_agent(
         .await
 }
 
-/// This method is used to test the server
-pub async fn root() -> (StatusCode, Json<Value>) {
-    info!("Root request");
-    let source = "
-    OPENQASM 2.0;
-    include \"qelib1.inc\";
-    qreg q[2];
-    creg c[2];
-    x q;
-    h q;
-    measure q -> c;
-    ";
-
-    let options = qasmsim::options::Options {
-        shots: Some(1000),
-        format: qasmsim::options::Format::Json,
-        ..Default::default()
-    };
-
-    match qasmsim::run(source, options.shots) {
-        Ok(result) => {
-            info!("Root request success");
-            (
-                StatusCode::OK,
-                match options.format {
-                    qasmsim::options::Format::Json => Json(
-                        serde_json::from_str::<Value>(&qasmsim::print_result(&result, &options))
-                            .unwrap(),
-                    ),
-                    qasmsim::options::Format::Tabular => {
-                        Json(json!({"Result": qasmsim::print_result(&result, &options)}))
-                    }
-                },
-            )
-        }
-        Err(err) => {
-            error!("Root request failed: {}", err);
-            (
-                StatusCode::BAD_REQUEST,
-                Json(json!({"Error": format!("{}", err)})),
-            )
-        }
-    }
-}
-
 /// Initialize the qthread with num of physical agents
 pub async fn init_qthread(
     state: State<ServerState>,
