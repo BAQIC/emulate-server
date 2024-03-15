@@ -8,7 +8,6 @@ RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.bfsu.edu.cn/g' /etc/apk/repositorie
 
 WORKDIR /workspace/emulate-server
 COPY . .
-RUN cargo build --release
-RUN mv target/release/emulate-server /bin/emulate-server && cargo clean
+RUN cargo build --release && mv target/release/emulate-server /bin/emulate-server && cargo clean && rm -rf /usr/local/cargo && rm -rf /usr/local/rustup
 
 ENTRYPOINT [ "/bin/emulate-server" ]
