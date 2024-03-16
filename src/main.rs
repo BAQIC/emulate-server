@@ -88,6 +88,7 @@ fn main() {
         let mut connection_options = ConnectOptions::new(base_url);
         connection_options.sqlx_logging(false);
 
+        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
         let db: DbConn = Database::connect(connection_options).await.unwrap();
         Migrator::fresh(&db).await.unwrap();
 
