@@ -32,8 +32,8 @@ fn main() {
             let mut connection_options = ConnectOptions::new(base_url);
             connection_options.sqlx_logging(false);
 
+            tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
             let db: DbConn = Database::connect(connection_options).await.unwrap();
-            Migrator::fresh(&db).await.unwrap();
 
             loop {
                 // Retrieve tasks awaiting assignment, the quantity of which is less than or
@@ -62,7 +62,7 @@ fn main() {
                     });
                 }
 
-                // every 5 seconds to check if there are waiting tasks
+                // every 1 seconds to check if there are waiting tasks
                 tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
             }
         });
