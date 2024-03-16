@@ -31,6 +31,8 @@ jobs:
             image:  ghcr.io/baqic/emulate-server
           - dockerfile: ./Dockerfile.dev
             image: ghcr.io/baqic/emulate-server-dev
+          - dockerfile: ./Dockerfile.k8s
+            image: ghcr.io/baqic/emulate-server-k8s
     permissions:
       contents: read
       packages: write

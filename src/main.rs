@@ -16,7 +16,10 @@ fn main() {
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async {
             // connect to the database
-            dotenv::from_filename(".env").ok();
+            if std::path::Path::new(".env").exists() {
+                info!("Load .env file from current directory");
+                dotenv::from_filename(".env").ok();
+            }
             let base_url =
                 std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".to_owned());
             let agent_addr =
@@ -69,7 +72,10 @@ fn main() {
     axum_rt.block_on(async {
         info!("Axum server started");
         // connect to the database
-        dotenv::from_filename(".env").ok();
+        if std::path::Path::new(".env").exists() {
+            info!("Load .env file from current directory");
+            dotenv::from_filename(".env").ok();
+        }
         let base_url =
             std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".to_owned());
         let agent_addr =

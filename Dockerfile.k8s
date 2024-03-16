@@ -1,0 +1,17 @@
+FROM rust:alpine
+
+ENV DATABASE_URL="postgres://quantum-emulator:quantum-emulator@127.0.0.1:5433/quantum-emulator"
+ENV AGENT_ADDR="http://127.0.0.1:3004/submit"
+
+WORKDIR /workspace
+
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.bfsu.edu.cn/g' /etc/apk/repositories \
+    && apk add git musl-dev make perl --no-cache
+
+WORKDIR /workspace/emulate-server
+COPY . .
+RUN rm .env && cargo build --release && mv target/release/emulate-server /bin/emulate-server \
+    && cargo clean && rm -rf /usr/local/cargo \
+    && rm -rf /usr/local/rustup
+
+ENTRYPOINT [ "/bin/emulate-server" ]
