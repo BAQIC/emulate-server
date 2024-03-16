@@ -264,7 +264,7 @@ pub async fn consume_task(
         sea_orm_active_enums::TaskStatus::NotStarted => {
             info!("Task {:?} is waiting", task.id);
             (
-                StatusCode::BAD_REQUEST,
+                StatusCode::OK,
                 Json(json!({
                     "status": "waiting",
                     "task_id": task.id
