@@ -9,26 +9,19 @@ use uuid::Uuid;
 pub struct Resource;
 
 impl Resource {
-    pub async fn random_init_physical_agents(
-        db: &DbConn,
-        physical_agents_num: u32,
-    ) -> Result<Vec<physical_agent::Model>, sea_orm::prelude::DbErr> {
-        let mut agents = vec![];
-        for _ in 0..physical_agents_num {
-            agents.push(Resource::add_physical_agent(db, Uuid::new_v4()).await?);
-        }
-        Ok(agents)
-    }
-
     pub async fn add_physical_agent(
         db: &DbConn,
         agent_id: Uuid,
+        ip: &str,
+        port: i32,
     ) -> Result<physical_agent::Model, sea_orm::prelude::DbErr> {
         PhysicalAgent::add_physical_agent(
             db,
             physical_agent::Model {
                 id: agent_id,
                 physical_agent_status: sea_orm_active_enums::PhysicalAgentStatus::Idle,
+                ip: ip.to_string(),
+                port,
             },
         )
         .await
@@ -39,6 +32,20 @@ impl Resource {
         agent_id: Uuid,
     ) -> Result<DeleteResult, sea_orm::prelude::DbErr> {
         PhysicalAgent::remove_physical_agent(db, agent_id).await
+    }
+
+    pub async fn get_physical_agent(
+        db: &DbConn,
+        agent_id: Uuid,
+    ) -> Result<Option<physical_agent::Model>, sea_orm::prelude::DbErr> {
+        PhysicalAgent::get_physical_agent(db, agent_id).await
+    }
+
+    pub async fn get_agent(
+        db: &DbConn,
+        agent_id: Uuid,
+    ) -> Result<Option<agent::Model>, sea_orm::prelude::DbErr> {
+        Agent::get_agent(db, agent_id).await
     }
 
     pub async fn get_idle_agent(

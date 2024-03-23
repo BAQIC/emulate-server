@@ -22,11 +22,8 @@ fn main() {
             }
             let base_url =
                 std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".to_owned());
-            let agent_addr =
-                std::env::var("AGENT_ADDR").unwrap_or_else(|_| "http://127.0.0.1:3004".to_owned());
 
             info!("Consume waiting task thread connect database: {}", base_url);
-            info!("Agent address is: {}", agent_addr);
 
             // disable sqlx logging
             let mut connection_options = ConnectOptions::new(base_url);
@@ -56,9 +53,8 @@ fn main() {
                         waiting_task.id
                     );
                     let db = db.clone();
-                    let agent_addr = agent_addr.clone();
                     tokio::spawn(async move {
-                        router::consume_task_back(&db, &agent_addr, waiting_task).await;
+                        router::consume_task_back(&db, waiting_task).await;
                     });
                 }
 
@@ -78,11 +74,8 @@ fn main() {
         }
         let base_url =
             std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".to_owned());
-        let agent_addr =
-            std::env::var("AGENT_ADDR").unwrap_or_else(|_| "http://127.0.0.1:3004".to_owned());
 
         info!("Axum server connect database: {}", base_url);
-        info!("Agent address is: {}", agent_addr);
 
         // disable sqlx logging
         let mut connection_options = ConnectOptions::new(base_url);
@@ -92,7 +85,7 @@ fn main() {
         let db: DbConn = Database::connect(connection_options).await.unwrap();
         Migrator::fresh(&db).await.unwrap();
 
-        let state = router::ServerState { db, agent_addr };
+        let state = router::ServerState { db };
 
         // Start the web server
         let emulator_router = Router::new()

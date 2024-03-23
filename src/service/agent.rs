@@ -23,6 +23,13 @@ impl Agent {
         .await
     }
 
+    pub async fn get_agent(
+        db: &DbConn,
+        agent_id: uuid::Uuid,
+    ) -> Result<Option<agent::Model>, sea_orm::prelude::DbErr> {
+        agent::Entity::find_by_id(agent_id).one(db).await
+    }
+
     pub async fn updated_agent_status_result(
         db: &DbConn,
         agent_id: uuid::Uuid,
@@ -51,6 +58,8 @@ impl PhysicalAgent {
         physical_agent::ActiveModel {
             id: Set(data.id.to_owned()),
             physical_agent_status: Set(data.physical_agent_status.to_owned()),
+            ip: Set(data.ip.to_owned()),
+            port: Set(data.port.to_owned()),
         }
         .insert(db)
         .await
@@ -77,6 +86,13 @@ impl PhysicalAgent {
             Ok(None) => Ok(None),
             Err(err) => Err(err),
         }
+    }
+
+    pub async fn get_physical_agent(
+        db: &DbConn,
+        agent_id: uuid::Uuid,
+    ) -> Result<Option<physical_agent::Model>, sea_orm::prelude::DbErr> {
+        physical_agent::Entity::find_by_id(agent_id).one(db).await
     }
 
     pub async fn get_idle_physical_agent_num(db: &DbConn) -> Result<u64, sea_orm::prelude::DbErr> {

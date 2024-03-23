@@ -9,6 +9,9 @@ pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: Uuid,
     pub physical_agent_status: PhysicalAgentStatus,
+    #[sea_orm(unique)]
+    pub ip: String,
+    pub port: i32,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

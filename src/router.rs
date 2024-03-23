@@ -23,7 +23,6 @@ pub struct EmulateMessage {
 #[derive(Clone)]
 pub struct ServerState {
     pub db: DbConn,
-    pub agent_addr: String,
 }
 
 #[derive(Deserialize)]
@@ -32,8 +31,9 @@ pub struct TaskID {
 }
 
 #[derive(Deserialize)]
-pub struct AgentNum {
-    agent_num: String,
+pub struct AgentInfo {
+    pub ip: String,
+    pub port: i32,
 }
 
 #[derive(Deserialize, Debug, Clone, Copy)]
@@ -117,27 +117,31 @@ pub async fn invoke_agent(
 /// Initialize the qthread with num of physical agents
 pub async fn init_qthread(
     state: State<ServerState>,
-    query_message: Query<AgentNum>,
+    query_message: Query<AgentInfo>,
 ) -> (StatusCode, Json<Value>) {
     info!(
-        "Init qthread with {:?} physical agents",
-        query_message.0.agent_num
+        "Init qthread with {}:{:?} physical agent",
+        query_message.0.ip, query_message.0.port
     );
     let db = &state.db;
-    match service::resource::Resource::random_init_physical_agents(
+    match service::resource::Resource::add_physical_agent(
         db,
-        query_message.0.agent_num.parse::<u32>().unwrap(),
+        uuid::Uuid::new_v4(),
+        &query_message.0.ip,
+        query_message.0.port,
     )
     .await
     {
         Ok(_) => {
             info!(
-                "Add {:?} physical agents added successfully",
-                query_message.0.agent_num
+                "Add {}:{} physical agents added successfully",
+                query_message.0.ip, query_message.0.port
             );
             (
                 StatusCode::OK,
-                Json(json!({"Message": "Physical Agents added successfully"})),
+                Json(
+                    json!({"Message": format!("Physical Agent {}:{} added successfully", query_message.0.ip, query_message.0.port)}),
+                ),
             )
         }
         Err(err) => {
@@ -191,8 +195,22 @@ pub async fn consume_task(
     // If there is an available agent, run the task. Otherwise, return the task id
     match task.status {
         sea_orm_active_enums::TaskStatus::Running => {
+            let physical_agent = service::resource::Resource::get_physical_agent(
+                &state.db,
+                service::resource::Resource::get_agent(&state.db, task.agent_id.unwrap())
+                    .await
+                    .unwrap()
+                    .unwrap()
+                    .physical_id,
+            )
+            .await
+            .unwrap()
+            .unwrap();
             let result = invoke_agent(
-                &state.agent_addr,
+                &format!(
+                    "http://{}:{}/submit",
+                    physical_agent.ip, physical_agent.port
+                ),
                 &emulate_message.code,
                 emulate_message.shots,
                 emulate_message.agent,
@@ -286,7 +304,7 @@ pub async fn consume_task(
 }
 
 /// Consume the task when there are some waiting tasks and available agents
-pub async fn consume_task_back(db: &DbConn, agent_addr: &str, waiting_task: entity::task::Model) {
+pub async fn consume_task_back(db: &DbConn, waiting_task: entity::task::Model) {
     info!("Consume task in consume waiting task thread");
     let task = service::qthread::Qthread::submit_task_without_add(&db, waiting_task)
         .await
@@ -302,8 +320,27 @@ pub async fn consume_task_back(db: &DbConn, agent_addr: &str, waiting_task: enti
                     .unwrap(),
             );
 
+            let physical_agent = service::resource::Resource::get_physical_agent(
+                &db,
+                service::resource::Resource::get_agent(db, task.agent_id.unwrap())
+                    .await
+                    .unwrap()
+                    .unwrap()
+                    .physical_id,
+            )
+            .await
+            .unwrap()
+            .unwrap();
+
+            info!(
+                "Task {:?} is running on agent {}:{}",
+                task.id, physical_agent.ip, physical_agent.port
+            );
             let result = invoke_agent(
-                agent_addr,
+                &format!(
+                    "http://{}:{}/submit",
+                    physical_agent.ip, physical_agent.port
+                ),
                 &task.source,
                 match option.shots {
                     Some(s) => s,
