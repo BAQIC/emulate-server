@@ -12,6 +12,8 @@ pub enum PhysicalAgent {
     Table,
     Id,
     PhysicalAgentStatus,
+    IP,
+    Port
 }
 
 #[derive(DeriveIden, EnumIter)]
@@ -53,6 +55,8 @@ impl MigrationTrait for Migration {
                             )
                             .not_null(),
                     )
+                    .col(ColumnDef::new(PhysicalAgent::IP).string().not_null())
+                    .col(ColumnDef::new(PhysicalAgent::Port).integer().not_null())
                     .to_owned(),
             )
             .await
