@@ -14,8 +14,6 @@ pub enum Task {
     Source,
     Result,
     Shots,
-    ExecShots,
-    VExecShots,
     Depth,
     Status,
     CreatedTime,
@@ -56,10 +54,8 @@ impl MigrationTrait for Migration {
                     )
                     .col(ColumnDef::new(Task::Source).string().not_null())
                     .col(ColumnDef::new(Task::Result).string().null())
-                    .col(ColumnDef::new(Task::Shots).unsigned().null())
-                    .col(ColumnDef::new(Task::ExecShots).unsigned().null())
-                    .col(ColumnDef::new(Task::VExecShots).unsigned().null())
-                    .col(ColumnDef::new(Task::Depth).unsigned().null())
+                    .col(ColumnDef::new(Task::Shots).unsigned().not_null())
+                    .col(ColumnDef::new(Task::Depth).unsigned().not_null())
                     .col(
                         ColumnDef::new(Task::Status)
                             .enumeration(TaskStatus::Table, TaskStatus::iter().skip(1))

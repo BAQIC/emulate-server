@@ -12,7 +12,7 @@ pub struct Model {
     pub ip: String,
     pub port: i32,
     pub qubit_count: i32,
-    pub qubit_using: i32,
+    pub qubit_idle: i32,
     pub circuit_depth: i32,
 }
 

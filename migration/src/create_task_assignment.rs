@@ -14,6 +14,7 @@ pub enum TaskAssignment {
     Id,
     TaskId,
     AgentId,
+    Shots,
     AssignmentStatus,
 }
 
@@ -50,6 +51,7 @@ impl MigrationTrait for Migration {
                     )
                     .col(ColumnDef::new(TaskAssignment::AgentId).uuid().not_null())
                     .col(ColumnDef::new(TaskAssignment::TaskId).uuid().not_null())
+                    .col(ColumnDef::new(TaskAssignment::Shots).unsigned().null())
                     .col(
                         ColumnDef::new(TaskAssignment::AssignmentStatus)
                             .enumeration(AssignmentStatus::Table, AssignmentStatus::iter().skip(1))
