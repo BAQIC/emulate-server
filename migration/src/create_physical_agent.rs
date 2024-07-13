@@ -15,7 +15,7 @@ pub enum PhysicalAgent {
     IP,
     Port,
     QubitCount,
-    QubitUsing,
+    QubitIdle,
     CircuitDepth,
 }
 
@@ -66,7 +66,7 @@ impl MigrationTrait for Migration {
                             .not_null(),
                     )
                     .col(
-                        ColumnDef::new(PhysicalAgent::QubitUsing)
+                        ColumnDef::new(PhysicalAgent::QubitIdle)
                             .unsigned()
                             .not_null(),
                     )

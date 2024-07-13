@@ -10,6 +10,7 @@ pub struct Model {
     pub id: Uuid,
     pub agent_id: Uuid,
     pub task_id: Uuid,
+    pub shots: Option<i32>,
     pub assignment_status: AssignmentStatus,
 }
 
