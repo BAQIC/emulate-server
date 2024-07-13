@@ -10,42 +10,24 @@ pub struct Model {
     pub id: Uuid,
     pub source: String,
     pub result: Option<String>,
-    pub option_id: Uuid,
+    pub shots: Option<i32>,
+    pub exec_shots: Option<i32>,
+    pub v_exec_shots: Option<i32>,
+    pub depth: Option<i32>,
     pub status: TaskStatus,
     pub created_time: DateTime,
     pub updated_time: DateTime,
-    pub agent_id: Option<Uuid>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
-    #[sea_orm(
-        belongs_to = "super::agent::Entity",
-        from = "Column::AgentId",
-        to = "super::agent::Column::Id",
-        on_update = "Cascade",
-        on_delete = "Cascade"
-    )]
-    Agent,
-    #[sea_orm(
-        belongs_to = "super::options::Entity",
-        from = "Column::OptionId",
-        to = "super::options::Column::Id",
-        on_update = "Cascade",
-        on_delete = "Cascade"
-    )]
-    Options,
+    #[sea_orm(has_many = "super::task_assignment::Entity")]
+    TaskAssignment,
 }
 
-impl Related<super::agent::Entity> for Entity {
+impl Related<super::task_assignment::Entity> for Entity {
     fn to() -> RelationDef {
-        Relation::Agent.def()
-    }
-}
-
-impl Related<super::options::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::Options.def()
+        Relation::TaskAssignment.def()
     }
 }
 

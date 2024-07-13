@@ -3,8 +3,8 @@
 use sea_orm::entity::prelude::*;
 
 #[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum)]
-#[sea_orm(rs_type = "String", db_type = "Enum", enum_name = "agent_status")]
-pub enum AgentStatus {
+#[sea_orm(rs_type = "String", db_type = "Enum", enum_name = "assignment_status")]
+pub enum AssignmentStatus {
     #[sea_orm(string_value = "failed")]
     Failed,
     #[sea_orm(string_value = "running")]
@@ -13,26 +13,14 @@ pub enum AgentStatus {
     Succeeded,
 }
 #[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum)]
-#[sea_orm(rs_type = "String", db_type = "Enum", enum_name = "agent_type")]
-pub enum AgentType {
-    #[sea_orm(string_value = "cudaq")]
-    Cudaq,
-    #[sea_orm(string_value = "qasm_sim")]
-    QasmSim,
-    #[sea_orm(string_value = "qpp_dm")]
-    QppDm,
-    #[sea_orm(string_value = "qpp_sv")]
-    QppSv,
-}
-#[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum)]
 #[sea_orm(
     rs_type = "String",
     db_type = "Enum",
     enum_name = "physical_agent_status"
 )]
 pub enum PhysicalAgentStatus {
-    #[sea_orm(string_value = "idle")]
-    Idle,
+    #[sea_orm(string_value = "down")]
+    Down,
     #[sea_orm(string_value = "running")]
     Running,
 }
