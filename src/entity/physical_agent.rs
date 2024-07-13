@@ -8,20 +8,23 @@ use sea_orm::entity::prelude::*;
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: Uuid,
-    pub physical_agent_status: PhysicalAgentStatus,
+    pub status: PhysicalAgentStatus,
     pub ip: String,
     pub port: i32,
+    pub qubit_count: i32,
+    pub qubit_using: i32,
+    pub circuit_depth: i32,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
-    #[sea_orm(has_many = "super::agent::Entity")]
-    Agent,
+    #[sea_orm(has_many = "super::task_assignment::Entity")]
+    TaskAssignment,
 }
 
-impl Related<super::agent::Entity> for Entity {
+impl Related<super::task_assignment::Entity> for Entity {
     fn to() -> RelationDef {
-        Relation::Agent.def()
+        Relation::TaskAssignment.def()
     }
 }
 
