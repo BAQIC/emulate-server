@@ -13,6 +13,7 @@ pub enum Task {
     Id,
     Source,
     Result,
+    Qubits,
     Shots,
     Depth,
     Status,
@@ -54,6 +55,7 @@ impl MigrationTrait for Migration {
                     )
                     .col(ColumnDef::new(Task::Source).string().not_null())
                     .col(ColumnDef::new(Task::Result).string().null())
+                    .col(ColumnDef::new(Task::Qubits).unsigned().not_null())
                     .col(ColumnDef::new(Task::Shots).unsigned().not_null())
                     .col(ColumnDef::new(Task::Depth).unsigned().not_null())
                     .col(
