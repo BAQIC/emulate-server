@@ -36,8 +36,8 @@ impl PhysicalAgent {
                         physical_agent::Column::Status
                             .eq(sea_orm_active_enums::PhysicalAgentStatus::Running),
                     )
-                    .add(physical_agent::Column::QubitIdle.gt(task_qubits as i32))
-                    .add(physical_agent::Column::CircuitDepth.gt(task_depth as i32)),
+                    .add(physical_agent::Column::QubitIdle.gte(task_qubits as i32))
+                    .add(physical_agent::Column::CircuitDepth.gte(task_depth as i32)),
             )
             .order_by_desc(physical_agent::Column::QubitIdle)
             .one(db)
@@ -61,8 +61,8 @@ impl PhysicalAgent {
                         physical_agent::Column::Status
                             .eq(sea_orm_active_enums::PhysicalAgentStatus::Running),
                     )
-                    .add(physical_agent::Column::QubitIdle.gt(task_qubits as i32))
-                    .add(physical_agent::Column::CircuitDepth.gt(task_depth as i32)),
+                    .add(physical_agent::Column::QubitIdle.gte(task_qubits as i32))
+                    .add(physical_agent::Column::CircuitDepth.gte(task_depth as i32)),
             )
             .order_by_asc(physical_agent::Column::QubitIdle)
             .one(db)
@@ -79,6 +79,21 @@ impl PhysicalAgent {
         agent_id: uuid::Uuid,
     ) -> Result<Option<physical_agent::Model>, sea_orm::prelude::DbErr> {
         physical_agent::Entity::find_by_id(agent_id).one(db).await
+    }
+
+    pub async fn update_physical_agent_qubits_idle(
+        db: &DbConn,
+        agent_id: uuid::Uuid,
+        qubits_idle: i32,
+    ) -> Result<physical_agent::Model, sea_orm::prelude::DbErr> {
+        let mut agent: physical_agent::ActiveModel = physical_agent::Entity::find_by_id(agent_id)
+            .one(db)
+            .await?
+            .unwrap()
+            .into();
+
+        agent.qubit_idle = Set(qubits_idle);
+        agent.update(db).await
     }
 
     pub async fn update_physical_agent_status(

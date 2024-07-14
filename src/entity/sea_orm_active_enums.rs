@@ -25,6 +25,14 @@ pub enum PhysicalAgentStatus {
     Running,
 }
 #[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum)]
+#[sea_orm(rs_type = "String", db_type = "Enum", enum_name = "task_active_status")]
+pub enum TaskActiveStatus {
+    #[sea_orm(string_value = "running")]
+    Running,
+    #[sea_orm(string_value = "waiting")]
+    Waiting,
+}
+#[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum)]
 #[sea_orm(rs_type = "String", db_type = "Enum", enum_name = "task_status")]
 pub enum TaskStatus {
     #[sea_orm(string_value = "failed")]

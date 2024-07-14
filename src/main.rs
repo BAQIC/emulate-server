@@ -2,6 +2,7 @@
 use axum::{routing, Router};
 use log::info;
 use migration::{Migrator, MigratorTrait};
+use router::consume_task;
 pub use sea_orm::{ConnectOptions, Database, DbConn};
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -14,8 +15,12 @@ pub mod task;
 fn main() {
     log4rs::init_file("log4rs.yaml", Default::default()).unwrap();
 
+    let schd_conf = config::QSchedulerConfig::default();
+    let schd_conf_cons = schd_conf.clone();
+    let schd_conf_axum = schd_conf.clone();
+
     // Start a thread to consume waiting tasks, and submit them to idle agents
-    std::thread::spawn(|| {
+    std::thread::spawn(move || {
         info!("Consume waiting task thread started");
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async {
@@ -37,29 +42,36 @@ fn main() {
             let db: DbConn = Database::connect(connection_options).await.unwrap();
 
             loop {
-                // Retrieve tasks awaiting assignment, the quantity of which is less than or
-                // equal to the number of available agents.
-                let waiting_tasks = service::task::Task::get_waiting_task(
-                    &db,
-                    Some(
-                        service::resource::Resource::get_idle_agent_num(&db)
-                            .await
-                            .unwrap(),
-                    ),
-                )
-                .await
-                .unwrap();
-
-                // for each waiting task, submit it to an idle agent
+                let waiting_tasks = service::task_active::TaskActive::get_asc_tasks(&db)
+                    .await
+                    .unwrap();
+                
+                // todo: if the device is idle, run one task concurrently
                 for waiting_task in waiting_tasks {
-                    info!(
-                        "Consume waiting task thread submit task: {:?}",
-                        waiting_task.id
-                    );
-                    let db = db.clone();
-                    tokio::spawn(async move {
-                        router::consume_task_back(&db, waiting_task).await;
-                    });
+                    match service::physical_agent::PhysicalAgent::get_least_available_physical_agent(
+                        &db,
+                        waiting_task.qubits as u32,
+                        waiting_task.depth as u32,
+                    ).await {
+                        Ok(Some(agent)) => {
+                            service::physical_agent::PhysicalAgent::update_physical_agent_qubits_idle(
+                                &db,
+                                agent.id,
+                                agent.qubit_idle - waiting_task.qubits as i32,
+                            ).await.unwrap();
+
+                            let db = db.clone();
+
+                            tokio::spawn(async move {
+                                consume_task(&db, schd_conf_cons.shed_min_depth as f32, schd_conf_cons.shed_min_gran as f32, waiting_task, agent).await
+                            });
+                        }
+                        Ok(None) => { break; }
+                        Err(err) => {
+                            info!("Error: {}", err);
+                            break;
+                        }
+                    }
                 }
 
                 // every 1 seconds to check if there are waiting tasks
@@ -69,7 +81,7 @@ fn main() {
     });
 
     let axum_rt = tokio::runtime::Runtime::new().unwrap();
-    axum_rt.block_on(async {
+    axum_rt.block_on(async move {
         info!("Axum server started");
         // connect to the database
         if std::path::Path::new(".env").exists() {
@@ -93,7 +105,7 @@ fn main() {
         // todo: read config from yaml file
         let state = Arc::new(RwLock::new(router::ServerState {
             db,
-            config: config::QSchedulerConfig::default(),
+            config: schd_conf_axum,
         }));
 
         // Start the web server
@@ -102,7 +114,7 @@ fn main() {
             .route("/submit", routing::post(router::submit))
             .route("/get_task", routing::get(router::get_task))
             .route("/get_task/:id", routing::get(router::get_task_with_id))
-            .with_state(Arc::clone(&state));
+            .with_state(state.clone());
 
         let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
         info!(

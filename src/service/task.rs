@@ -29,36 +29,4 @@ impl Task {
     ) -> Result<Option<task::Model>, sea_orm::prelude::DbErr> {
         task::Entity::find_by_id(task_id).one(db).await
     }
-
-    pub async fn update_task_status(
-        db: &DbConn,
-        task_id: uuid::Uuid,
-        status: sea_orm_active_enums::TaskStatus,
-    ) -> Result<task::Model, sea_orm::prelude::DbErr> {
-        let mut task: task::ActiveModel = task::Entity::find_by_id(task_id)
-            .one(db)
-            .await?
-            .unwrap()
-            .into();
-        task.status = ActiveValue::set(status);
-        task.updated_time = ActiveValue::set(chrono::Utc::now().naive_utc());
-        task.update(db).await
-    }
-
-    pub async fn update_task_result(
-        db: &DbConn,
-        task_id: uuid::Uuid,
-        status: sea_orm_active_enums::TaskStatus,
-        result: Option<String>,
-    ) -> Result<task::Model, sea_orm::prelude::DbErr> {
-        let mut task: task::ActiveModel = task::Entity::find_by_id(task_id)
-            .one(db)
-            .await?
-            .unwrap()
-            .into();
-        task.status = ActiveValue::set(status);
-        task.result = ActiveValue::set(result);
-        task.updated_time = ActiveValue::set(chrono::Utc::now().naive_utc());
-        task.update(db).await
-    }
 }

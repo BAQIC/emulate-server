@@ -1,3 +1,5 @@
+use extension::postgres::Type;
+use sea_orm::{EnumIter, Iterable};
 use sea_orm_migration::prelude::*;
 
 #[derive(DeriveMigrationName)]
@@ -14,13 +16,29 @@ pub enum TaskActive {
     ExecShots,
     VExecShots,
     Depth,
+    Status,
     CreatedTime,
     UpdatedTime,
+}
+
+#[derive(DeriveIden, EnumIter)]
+pub enum TaskActiveStatus {
+    Table,
+    Running,
+    Waiting,
 }
 
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        manager
+            .create_type(
+                Type::create()
+                    .as_enum(TaskActiveStatus::Table)
+                    .values(TaskActiveStatus::iter().skip(1))
+                    .to_owned(),
+            )
+            .await?;
         manager
             .create_table(
                 Table::create()
@@ -40,6 +58,11 @@ impl MigrationTrait for Migration {
                     .col(ColumnDef::new(TaskActive::ExecShots).unsigned().not_null())
                     .col(ColumnDef::new(TaskActive::VExecShots).unsigned().not_null())
                     .col(ColumnDef::new(TaskActive::Depth).unsigned().not_null())
+                    .col(
+                        ColumnDef::new(TaskActive::Status)
+                            .enumeration(TaskActiveStatus::Table, TaskActiveStatus::iter().skip(1))
+                            .not_null(),
+                    )
                     .col(
                         ColumnDef::new(TaskActive::CreatedTime)
                             .timestamp()
