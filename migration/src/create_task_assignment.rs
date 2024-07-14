@@ -63,12 +63,6 @@ impl MigrationTrait for Migration {
                             .from_col(TaskAssignment::AgentId)
                             .to(PhysicalAgent::Table, PhysicalAgent::Id),
                     )
-                    .foreign_key(
-                        ForeignKey::create()
-                            .name("fk_task_assignment_task_id")
-                            .from_col(TaskAssignment::TaskId)
-                            .to(Task::Table, Task::Id),
-                    )
                     .to_owned(),
             )
             .await
@@ -76,7 +70,12 @@ impl MigrationTrait for Migration {
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         manager
-            .drop_table(Table::drop().table(Task::Table).if_exists().to_owned())
+            .drop_table(
+                Table::drop()
+                    .table(TaskAssignment::Table)
+                    .if_exists()
+                    .to_owned(),
+            )
             .await
     }
 }

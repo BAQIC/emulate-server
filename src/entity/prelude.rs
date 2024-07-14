@@ -2,4 +2,5 @@
 
 pub use super::physical_agent::Entity as PhysicalAgent;
 pub use super::task::Entity as Task;
+pub use super::task_active::Entity as TaskActive;
 pub use super::task_assignment::Entity as TaskAssignment;
