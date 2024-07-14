@@ -1,7 +1,7 @@
 use crate::entity::*;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, Condition, DbConn, DeleteResult, EntityTrait, PaginatorTrait,
-    QueryFilter, QueryOrder, Set,
+    ActiveModelTrait, ColumnTrait, Condition, DbConn, DeleteResult, EntityTrait, QueryFilter,
+    QueryOrder, Set,
 };
 
 pub struct PhysicalAgent;
@@ -17,7 +17,7 @@ impl PhysicalAgent {
             ip: Set(data.ip.to_owned()),
             port: Set(data.port.to_owned()),
             qubit_count: Set(data.qubit_count.to_owned()),
-            qubit_idle: Set(data.qubit_using.to_owned()),
+            qubit_idle: Set(data.qubit_idle.to_owned()),
             circuit_depth: Set(data.circuit_depth.to_owned()),
         }
         .insert(db)
@@ -92,7 +92,7 @@ impl PhysicalAgent {
             .unwrap()
             .into();
 
-        agent.physical_agent_status = Set(status);
+        agent.status = Set(status);
         agent.update(db).await
     }
 

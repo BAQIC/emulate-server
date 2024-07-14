@@ -1,7 +1,5 @@
 use crate::entity::*;
-use sea_orm::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, DbConn, EntityTrait, QueryFilter, QueryOrder,
-};
+use sea_orm::{ActiveModelTrait, ActiveValue, DbConn, EntityTrait};
 
 pub struct Task;
 
@@ -51,6 +49,7 @@ impl Task {
         db: &DbConn,
         task_id: uuid::Uuid,
         status: sea_orm_active_enums::TaskStatus,
+        result: Option<String>,
     ) -> Result<task::Model, sea_orm::prelude::DbErr> {
         let mut task: task::ActiveModel = task::Entity::find_by_id(task_id)
             .one(db)

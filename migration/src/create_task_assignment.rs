@@ -1,4 +1,4 @@
-use super::{create_physical_agent::PhysicalAgent, create_task::Task};
+use super::create_physical_agent::PhysicalAgent;
 use sea_orm_migration::{
     prelude::*,
     sea_orm::{EnumIter, Iterable},
@@ -15,7 +15,7 @@ pub enum TaskAssignment {
     TaskId,
     AgentId,
     Shots,
-    AssignmentStatus,
+    Status,
 }
 
 #[derive(DeriveIden, EnumIter)]
@@ -53,7 +53,7 @@ impl MigrationTrait for Migration {
                     .col(ColumnDef::new(TaskAssignment::TaskId).uuid().not_null())
                     .col(ColumnDef::new(TaskAssignment::Shots).unsigned().null())
                     .col(
-                        ColumnDef::new(TaskAssignment::AssignmentStatus)
+                        ColumnDef::new(TaskAssignment::Status)
                             .enumeration(AssignmentStatus::Table, AssignmentStatus::iter().skip(1))
                             .not_null(),
                     )

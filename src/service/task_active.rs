@@ -1,7 +1,5 @@
 use crate::entity::*;
-use sea_orm::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, DbConn, EntityTrait, QueryFilter, QueryOrder,
-};
+use sea_orm::{ActiveModelTrait, ActiveValue, DbConn, EntityTrait};
 
 pub struct TaskActive;
 
@@ -9,7 +7,7 @@ impl TaskActive {
     pub async fn add_task(
         db: &DbConn,
         data: task_active::Model,
-    ) -> Result<task::Model, sea_orm::prelude::DbErr> {
+    ) -> Result<task_active::Model, sea_orm::prelude::DbErr> {
         task_active::ActiveModel {
             id: ActiveValue::set(data.id.to_owned()),
             source: ActiveValue::set(data.source.to_owned()),
@@ -29,14 +27,15 @@ impl TaskActive {
     pub async fn get_task(
         db: &DbConn,
         task_id: uuid::Uuid,
-    ) -> Result<Option<task::Model>, sea_orm::prelude::DbErr> {
+    ) -> Result<Option<task_active::Model>, sea_orm::prelude::DbErr> {
         task_active::Entity::find_by_id(task_id).one(db).await
     }
 
     pub async fn update_task_result(
         db: &DbConn,
         task_id: uuid::Uuid,
-    ) -> Result<task::Model, sea_orm::prelude::DbErr> {
+        result: Option<String>,
+    ) -> Result<task_active::Model, sea_orm::prelude::DbErr> {
         let mut task: task_active::ActiveModel = task_active::Entity::find_by_id(task_id)
             .one(db)
             .await?

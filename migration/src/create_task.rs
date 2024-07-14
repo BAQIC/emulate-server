@@ -24,10 +24,8 @@ pub enum Task {
 #[derive(DeriveIden, EnumIter)]
 pub enum TaskStatus {
     Table,
-    Running,
     Succeeded,
     Failed,
-    NotStarted,
 }
 
 #[async_trait::async_trait]

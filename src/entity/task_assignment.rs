@@ -11,7 +11,7 @@ pub struct Model {
     pub agent_id: Uuid,
     pub task_id: Uuid,
     pub shots: Option<i32>,
-    pub assignment_status: AssignmentStatus,
+    pub status: AssignmentStatus,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -24,25 +24,11 @@ pub enum Relation {
         on_delete = "NoAction"
     )]
     PhysicalAgent,
-    #[sea_orm(
-        belongs_to = "super::task::Entity",
-        from = "Column::TaskId",
-        to = "super::task::Column::Id",
-        on_update = "NoAction",
-        on_delete = "NoAction"
-    )]
-    Task,
 }
 
 impl Related<super::physical_agent::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::PhysicalAgent.def()
-    }
-}
-
-impl Related<super::task::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::Task.def()
     }
 }
 

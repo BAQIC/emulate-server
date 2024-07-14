@@ -29,10 +29,6 @@ pub enum PhysicalAgentStatus {
 pub enum TaskStatus {
     #[sea_orm(string_value = "failed")]
     Failed,
-    #[sea_orm(string_value = "not_started")]
-    NotStarted,
-    #[sea_orm(string_value = "running")]
-    Running,
     #[sea_orm(string_value = "succeeded")]
     Succeeded,
 }

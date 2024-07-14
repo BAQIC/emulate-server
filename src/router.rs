@@ -11,19 +11,25 @@ use reqwest::Response;
 use sea_orm::DbConn;
 use serde::Deserialize;
 use serde_json::{json, Value};
+use std::sync::Arc;
+use tokio::sync::RwLock;
 use uuid::Uuid;
 
 #[derive(Deserialize, Debug)]
 pub struct EmulateMessage {
     code: String,
+    qubits: usize,
+    depth: usize,
     shots: usize,
-    agent: AgentType,
 }
 
 #[derive(Clone)]
 pub struct ServerState {
     pub db: DbConn,
+    pub config: super::config::QSchedulerConfig,
 }
+
+pub type SharedState = Arc<RwLock<ServerState>>;
 
 #[derive(Deserialize)]
 pub struct TaskID {
@@ -33,51 +39,9 @@ pub struct TaskID {
 #[derive(Deserialize)]
 pub struct AgentInfo {
     pub ip: String,
-    pub port: i32,
-}
-
-#[derive(Deserialize, Debug, Clone, Copy)]
-pub enum AgentType {
-    #[serde(rename = "qpp-sv")]
-    QppSV,
-    #[serde(rename = "qpp-dm")]
-    QppDM,
-    #[serde(rename = "qasmsim")]
-    QASMSim,
-    #[serde(rename = "cudaq")]
-    CUDAQ,
-}
-
-impl std::fmt::Display for AgentType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            AgentType::QppSV => write!(f, "qpp-sv"),
-            AgentType::QppDM => write!(f, "qpp-dm"),
-            AgentType::QASMSim => write!(f, "qasmsim"),
-            AgentType::CUDAQ => write!(f, "cudaq"),
-        }
-    }
-}
-
-pub struct Options {
-    pub shots: Option<usize>,
-    pub agent_type: AgentType,
-}
-
-/// Convert entity::Model::Options to Options
-pub fn model_option_to_qasm_option(option: entity::options::Model) -> Options {
-    Options {
-        shots: match option.shots {
-            Some(shot_num) => Some(shot_num as usize),
-            None => None,
-        },
-        agent_type: match option.agent_type {
-            sea_orm_active_enums::AgentType::QppSv => AgentType::QppSV,
-            sea_orm_active_enums::AgentType::QppDm => AgentType::QppDM,
-            sea_orm_active_enums::AgentType::QasmSim => AgentType::QASMSim,
-            sea_orm_active_enums::AgentType::Cudaq => AgentType::CUDAQ,
-        },
-    }
+    pub port: u32,
+    pub qubit_count: u32,
+    pub circuit_depth: u32,
 }
 
 /// Merge fields into a json object
@@ -97,15 +61,10 @@ pub fn merge_json(v: &Value, fields: Vec<(String, String)>) -> Value {
 
 pub async fn invoke_agent(
     address: &str,
-    code: &str,
+    qasm: &str,
     shots: usize,
-    agent: AgentType,
 ) -> Result<Response, reqwest::Error> {
-    let body = [
-        ("code", code.to_string()),
-        ("shots", shots.to_string()),
-        ("agent", agent.to_string()),
-    ];
+    let body = [("qasm", qasm.to_string()), ("shots", shots.to_string())];
 
     reqwest::Client::new()
         .post(address)
@@ -115,32 +74,39 @@ pub async fn invoke_agent(
 }
 
 /// Initialize the qthread with num of physical agents
-pub async fn init_qthread(
-    state: State<ServerState>,
-    query_message: Query<AgentInfo>,
+pub async fn add_physical_agent(
+    State(state): State<SharedState>,
+    Query(query_message): Query<AgentInfo>,
 ) -> (StatusCode, Json<Value>) {
     info!(
         "Init qthread with {}:{:?} physical agent",
-        query_message.0.ip, query_message.0.port
+        query_message.ip, query_message.port
     );
-    let db = &state.db;
-    match service::resource::Resource::add_physical_agent(
+    let db = &state.write().await.db;
+
+    match service::physical_agent::PhysicalAgent::add_physical_agent(
         db,
-        uuid::Uuid::new_v4(),
-        &query_message.0.ip,
-        query_message.0.port,
+        entity::physical_agent::Model {
+            id: uuid::Uuid::new_v4(),
+            status: sea_orm_active_enums::PhysicalAgentStatus::Running,
+            ip: query_message.ip.clone(),
+            port: query_message.port as i32,
+            qubit_count: query_message.qubit_count as i32,
+            qubit_idle: query_message.qubit_count as i32,
+            circuit_depth: query_message.circuit_depth as i32,
+        },
     )
     .await
     {
         Ok(_) => {
             info!(
                 "Add {}:{} physical agents added successfully",
-                query_message.0.ip, query_message.0.port
+                query_message.ip, query_message.port
             );
             (
                 StatusCode::OK,
                 Json(
-                    json!({"Message": format!("Physical Agent {}:{} added successfully", query_message.0.ip, query_message.0.port)}),
+                    json!({"Message": format!("Physical Agent {}:{} added successfully", query_message.ip, query_message.port)}),
                 ),
             )
         }
@@ -155,149 +121,48 @@ pub async fn init_qthread(
 }
 
 /// Consume the task when the server receives a submit request
-pub async fn consume_task(
+pub async fn add_task(
     Form(emulate_message): Form<EmulateMessage>,
-    state: State<ServerState>,
+    State(state): State<SharedState>,
 ) -> (StatusCode, Json<Value>) {
     info!("Consume task in submit request");
-    // get qasm simulation options
-    let options = Options {
-        shots: if emulate_message.shots == 0 {
-            None
-        } else {
-            Some(emulate_message.shots)
-        },
-        agent_type: emulate_message.agent,
-    };
 
     // add this task to the database
-    let task = service::qthread::Qthread::submit_task(
-        &state.db,
-        entity::task::Model {
+    match service::task_active::TaskActive::add_task(
+        &state.write().await.db,
+        entity::task_active::Model {
             id: uuid::Uuid::new_v4(),
-            option_id: service::options::Options::add_qasm_options(&state.db, &options)
-                .await
-                .unwrap()
-                .id,
             source: emulate_message.code.clone(),
-            status: sea_orm_active_enums::TaskStatus::NotStarted,
             result: None,
+            qubits: emulate_message.qubits as i32,
+            depth: emulate_message.depth as i32,
+            shots: emulate_message.shots as i32,
+            exec_shots: 0,
+            v_exec_shots: state.write().await.config.min_vexec_shots as i32,
             created_time: chrono::Utc::now().naive_utc(),
             updated_time: chrono::Utc::now().naive_utc(),
-            agent_id: None,
         },
     )
     .await
-    .unwrap();
-
-    info!("Task {:?} added successfully", task.id);
-
-    // If there is an available agent, run the task. Otherwise, return the task id
-    match task.status {
-        sea_orm_active_enums::TaskStatus::Running => {
-            let physical_agent = service::resource::Resource::get_physical_agent(
-                &state.db,
-                service::resource::Resource::get_agent(&state.db, task.agent_id.unwrap())
-                    .await
-                    .unwrap()
-                    .unwrap()
-                    .physical_id,
-            )
-            .await
-            .unwrap()
-            .unwrap();
-            let result = invoke_agent(
-                &format!(
-                    "http://{}:{}/submit",
-                    physical_agent.ip, physical_agent.port
-                ),
-                &emulate_message.code,
-                emulate_message.shots,
-                emulate_message.agent,
-            )
-            .await;
-
-            let (status, value) = if result.is_ok() {
-                (
-                    Some(result.as_ref().unwrap().status()),
-                    match result.unwrap().json::<Value>().await {
-                        Ok(v) => v,
-                        Err(err) => json!({"Error": format!("{}", err)}),
-                    },
-                )
-            } else {
-                (None, json!({"Error": format!("{}", result.unwrap_err())}))
-            };
-
-            service::qthread::Qthread::finish_task(
-                &state.db,
-                task.id,
-                match status {
-                    // If the task is simulated successfully, update the task status to succeeded.
-                    // Otherwise, update the task status to failed/
-                    Some(s) if s == reqwest::StatusCode::OK => (
-                        Some(serde_json::to_string_pretty(&value).expect("json pretty print")),
-                        sea_orm_active_enums::TaskStatus::Succeeded,
-                        sea_orm_active_enums::AgentStatus::Succeeded,
-                    ),
-                    Some(_) | None => (
-                        Some(serde_json::to_string_pretty(&value).expect("json pretty print")),
-                        sea_orm_active_enums::TaskStatus::Failed,
-                        sea_orm_active_enums::AgentStatus::Failed,
-                    ),
-                },
-            )
-            .await
-            .unwrap();
-
-            match status {
-                Some(s) if s == reqwest::StatusCode::OK => {
-                    info!("Task {:?} is succeeded", task.id);
-                    (
-                        StatusCode::OK,
-                        Json(merge_json(
-                            &value,
-                            vec![
-                                ("status".to_string(), "succeeded".to_string()),
-                                ("task_id".to_string(), task.id.to_string()),
-                            ],
-                        )),
-                    )
-                }
-                Some(_) | None => {
-                    error!("Task {:?} is failed", task.id);
-                    (
-                        StatusCode::BAD_REQUEST,
-                        Json(merge_json(
-                            &value,
-                            vec![
-                                ("status".to_string(), "failed".to_string()),
-                                ("task_id".to_string(), task.id.to_string()),
-                            ],
-                        )),
-                    )
-                }
-            }
-        }
-        sea_orm_active_enums::TaskStatus::NotStarted => {
-            info!("Task {:?} is waiting", task.id);
+    {
+        Ok(task) => {
+            info!(
+                "Task {:?} (qubits: {:?}, depth: {:?}, shots: {:?}) added successfully",
+                task.id, task.qubits, task.depth, task.shots
+            );
             (
                 StatusCode::OK,
                 Json(json!({
-                    "status": "waiting",
-                    "task_id": task.id
+                    "task_id": task.id,
+                    "status": "waiting"
                 })),
             )
         }
-        status => {
-            error!("Task status {:?} is not valid", status);
+        Err(err) => {
+            error!("Add task failed: {}", err);
             (
                 StatusCode::BAD_REQUEST,
-                Json(json!({
-                    "status": "error",
-                    "Error": format!("Task status {:?} is not valid", status),
-                    "task_id": task.id
-                })),
+                Json(json!({"Error": format!("{}", err)})),
             )
         }
     }
@@ -306,7 +171,7 @@ pub async fn consume_task(
 /// Consume the task when there are some waiting tasks and available agents
 pub async fn consume_task_back(db: &DbConn, waiting_task: entity::task::Model) {
     info!("Consume task in consume waiting task thread");
-    let task = service::qthread::Qthread::submit_task_without_add(&db, waiting_task)
+    let task = service::task_assignment::Qthread::submit_task_without_add(&db, waiting_task)
         .await
         .unwrap();
 
@@ -363,7 +228,7 @@ pub async fn consume_task_back(db: &DbConn, waiting_task: entity::task::Model) {
             };
 
             // Qasm simulation
-            service::qthread::Qthread::finish_task(
+            service::task_assignment::Qthread::finish_task(
                 &db,
                 task.id,
                 match status {
@@ -400,17 +265,17 @@ pub async fn consume_task_back(db: &DbConn, waiting_task: entity::task::Model) {
 }
 
 /// Submit the task to the server
-pub async fn submit(state: State<ServerState>, request: Request) -> (StatusCode, Json<Value>) {
+pub async fn submit(state: State<SharedState>, request: Request) -> (StatusCode, Json<Value>) {
     match request.headers().get(header::CONTENT_TYPE) {
         // If the content type is correct, consume the task
         Some(content_type) => match content_type.to_str().unwrap() {
             "application/x-www-form-urlencoded" => {
                 let Form(emulate_message) = request.extract().await.unwrap();
-                consume_task(Form(emulate_message), state).await
+                add_task(Form(emulate_message), state).await
             }
             "application/json" => {
                 let Json::<EmulateMessage>(emulate_message) = request.extract().await.unwrap();
-                consume_task(Form(emulate_message), state).await
+                add_task(Form(emulate_message), state).await
             }
             _ => {
                 error!(
@@ -436,67 +301,72 @@ pub async fn submit(state: State<ServerState>, request: Request) -> (StatusCode,
 pub async fn _get_task(db: &DbConn, task_id: Uuid) -> (StatusCode, Json<Value>) {
     info!("Get task status by task id: {:?}", task_id);
     let db = db;
-    match service::task::Task::get_task(db, task_id).await {
+    match service::task_active::TaskActive::get_task(db, task_id).await {
         Ok(task) => match task {
-            Some(task) => match task.status {
-                sea_orm_active_enums::TaskStatus::Running => {
-                    info!("Task {:?} is running", task.id);
-                    (
-                        StatusCode::OK,
-                        Json(json!({
-                            "status": "running",
-                            "task_id": task.id
-                        })),
-                    )
-                }
-                sea_orm_active_enums::TaskStatus::NotStarted => {
-                    info!("Task {:?} is waiting", task.id);
-                    (
-                        StatusCode::OK,
-                        Json(json!({
-                            "status": "waiting",
-                            "task_id": task.id
-                        })),
-                    )
-                }
-                sea_orm_active_enums::TaskStatus::Succeeded => {
-                    info!("Task {:?} is succeeded", task.id);
-                    (
-                        StatusCode::OK,
-                        Json(merge_json(
-                            &serde_json::from_str::<Value>(&task.result.unwrap()).unwrap(),
-                            vec![
-                                ("status".to_owned(), "succeeded".to_owned()),
-                                ("task_id".to_owned(), task.id.to_string()),
-                            ],
-                        )),
-                    )
-                }
-                sea_orm_active_enums::TaskStatus::Failed => {
-                    info!("Task {:?} is failed", task.id);
-                    (
-                        StatusCode::OK,
-                        Json(merge_json(
-                            &serde_json::from_str::<Value>(&task.result.unwrap()).unwrap(),
-                            vec![
-                                ("status".to_owned(), "failed".to_owned()),
-                                ("task_id".to_owned(), task.id.to_string()),
-                            ],
-                        )),
-                    )
-                }
-            },
-            None => {
-                info!("Task with id {:?} not found", task_id);
+            Some(task) => {
+                info!("Task {:?} is running", task.id);
                 (
-                    StatusCode::BAD_REQUEST,
+                    StatusCode::OK,
                     Json(json!({
-                        "task_id": task_id,
-                        "status": "error",
-                        "Error": "Task not found"
+                        "status": "found",
+                        "task_id": task.id
                     })),
                 )
             }
+            None => match service::task::Task::get_task(db, task_id).await {
+                Ok(task) => match task {
+                    Some(task) => match task.status {
+                        sea_orm_active_enums::TaskStatus::Failed => {
+                            info!("Task {:?} is failed", task.id);
+                            (
+                                StatusCode::OK,
+                                Json(merge_json(
+                                    &serde_json::from_str::<Value>(&task.result.unwrap()).unwrap(),
+                                    vec![
+                                        ("status".to_owned(), "failed".to_owned()),
+                                        ("task_id".to_owned(), task.id.to_string()),
+                                    ],
+                                )),
+                            )
+                        }
+                        sea_orm_active_enums::TaskStatus::Succeeded => {
+                            info!("Task {:?} is succeeded", task.id);
+                            (
+                                StatusCode::OK,
+                                Json(merge_json(
+                                    &serde_json::from_str::<Value>(&task.result.unwrap()).unwrap(),
+                                    vec![
+                                        ("status".to_owned(), "succeeded".to_owned()),
+                                        ("task_id".to_owned(), task.id.to_string()),
+                                    ],
+                                )),
+                            )
+                        }
+                    },
+                    None => {
+                        info!("Task with id {:?} not found", task_id);
+                        (
+                            StatusCode::BAD_REQUEST,
+                            Json(json!({
+                                "task_id": task_id,
+                                "status": "error",
+                                "Error": "Task not found"
+                            })),
+                        )
+                    }
+                },
+                Err(err) => {
+                    error!("Get task {:?} status failed: {}", task_id, err);
+                    (
+                        StatusCode::BAD_REQUEST,
+                        Json(json!({
+                            "task_id": task_id,
+                            "status": "error",
+                            "Error": format!("{}", err)
+                        })),
+                    )
+                }
+            },
         },
         Err(err) => {
             error!("Get task {:?} status failed: {}", task_id, err);
@@ -514,19 +384,19 @@ pub async fn _get_task(db: &DbConn, task_id: Uuid) -> (StatusCode, Json<Value>) 
 
 /// Get the task status by task id
 pub async fn get_task(
-    state: State<ServerState>,
-    query_message: Query<TaskID>,
+    State(state): State<SharedState>,
+    Query(query_message): Query<TaskID>,
 ) -> (StatusCode, Json<Value>) {
     _get_task(
-        &state.db,
+        &state.write().await.db,
         uuid::Uuid::parse_str(&query_message.task_id).unwrap(),
     )
     .await
 }
 
 pub async fn get_task_with_id(
-    state: State<ServerState>,
+    State(state): State<SharedState>,
     Path(task_id): Path<Uuid>,
 ) -> (StatusCode, Json<Value>) {
-    _get_task(&state.db, task_id).await
+    _get_task(&state.write().await.db, task_id).await
 }

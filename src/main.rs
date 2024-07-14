@@ -3,9 +3,13 @@ use axum::{routing, Router};
 use log::info;
 use migration::{Migrator, MigratorTrait};
 pub use sea_orm::{ConnectOptions, Database, DbConn};
+use std::sync::Arc;
+use tokio::sync::RwLock;
+pub mod config;
 pub mod entity;
 pub mod router;
 pub mod service;
+pub mod task;
 
 fn main() {
     log4rs::init_file("log4rs.yaml", Default::default()).unwrap();
@@ -83,17 +87,22 @@ fn main() {
 
         tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
         let db: DbConn = Database::connect(connection_options).await.unwrap();
+        // drop all tables and re-create them
         Migrator::fresh(&db).await.unwrap();
 
-        let state = router::ServerState { db };
+        // todo: read config from yaml file
+        let state = Arc::new(RwLock::new(router::ServerState {
+            db,
+            config: config::QSchedulerConfig::default(),
+        }));
 
         // Start the web server
         let emulator_router = Router::new()
-            .route("/init", routing::get(router::init_qthread))
+            .route("/init", routing::get(router::add_physical_agent))
             .route("/submit", routing::post(router::submit))
             .route("/get_task", routing::get(router::get_task))
             .route("/get_task/:id", routing::get(router::get_task_with_id))
-            .with_state(state);
+            .with_state(Arc::clone(&state));
 
         let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
         info!(
