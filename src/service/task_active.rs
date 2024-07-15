@@ -1,7 +1,6 @@
 use crate::entity::*;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, DbConn, EntityTrait, QueryFilter,
-    QueryOrder,
+    ActiveModelTrait, ActiveValue, ColumnTrait, DbConn, EntityTrait, QueryFilter, QueryOrder,
 };
 
 pub struct TaskActive;

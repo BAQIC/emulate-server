@@ -1,6 +1,7 @@
-use super::entity;
-use super::entity::sea_orm_active_enums;
-use super::service;
+use super::ServerState;
+use crate::entity;
+use crate::entity::sea_orm_active_enums;
+use crate::service;
 use axum::{
     extract::{Path, Query, Request, State},
     http::{header, StatusCode},
@@ -11,8 +12,6 @@ use reqwest::Response;
 use sea_orm::DbConn;
 use serde::Deserialize;
 use serde_json::{json, map::Entry, Value};
-use std::sync::Arc;
-use tokio::sync::RwLock;
 use uuid::Uuid;
 
 #[derive(Deserialize, Debug)]
@@ -23,25 +22,9 @@ pub struct EmulateMessage {
     shots: usize,
 }
 
-#[derive(Clone)]
-pub struct ServerState {
-    pub db: DbConn,
-    pub config: super::config::QSchedulerConfig,
-}
-
-pub type SharedState = Arc<RwLock<ServerState>>;
-
 #[derive(Deserialize)]
 pub struct TaskID {
     task_id: String,
-}
-
-#[derive(Deserialize)]
-pub struct AgentInfo {
-    pub ip: String,
-    pub port: u32,
-    pub qubit_count: u32,
-    pub circuit_depth: u32,
 }
 
 /// Merge fields into a json object
@@ -59,6 +42,7 @@ pub fn merge_json(v: &Value, fields: Vec<(String, String)>) -> Value {
     }
 }
 
+// merge simulation results from different shots
 fn merge_and_add(v1: &mut Value, v2: &Value) {
     let v1_memory_map = v1.get_mut("Memory").unwrap().as_object_mut().unwrap();
     let v2_memory_map = v2.get("Memory").unwrap().as_object().unwrap();
@@ -78,6 +62,7 @@ fn merge_and_add(v1: &mut Value, v2: &Value) {
     }
 }
 
+// invoke the agent to run the task
 pub async fn invoke_agent(
     address: &str,
     qasm: &str,
@@ -92,71 +77,20 @@ pub async fn invoke_agent(
         .await
 }
 
-/// Initialize the qthread with num of physical agents
-pub async fn add_physical_agent(
-    State(state): State<SharedState>,
-    Query(query_message): Query<AgentInfo>,
-) -> (StatusCode, Json<Value>) {
-    info!(
-        "Init physical agent (qubits: {}, circuit_depth: {}) with {}:{:?}",
-        query_message.qubit_count,
-        query_message.circuit_depth,
-        query_message.ip,
-        query_message.port
-    );
-    let db = &state.write().await.db;
-
-    match service::physical_agent::PhysicalAgent::add_physical_agent(
-        db,
-        entity::physical_agent::Model {
-            id: uuid::Uuid::new_v4(),
-            status: sea_orm_active_enums::PhysicalAgentStatus::Running,
-            ip: query_message.ip.clone(),
-            port: query_message.port as i32,
-            qubit_count: query_message.qubit_count as i32,
-            qubit_idle: query_message.qubit_count as i32,
-            circuit_depth: query_message.circuit_depth as i32,
-        },
-    )
-    .await
-    {
-        Ok(_) => {
-            info!(
-                "Add {}:{} physical agents added successfully",
-                query_message.ip, query_message.port
-            );
-            (
-                StatusCode::OK,
-                Json(
-                    json!({"Message": format!("Physical Agent {}:{} added successfully", query_message.ip, query_message.port)}),
-                ),
-            )
-        }
-        Err(err) => {
-            error!("Add physical agents failed: {}", err);
-            (
-                StatusCode::BAD_REQUEST,
-                Json(json!({"Error": format!("{}", err)})),
-            )
-        }
-    }
-}
-
-/// Consume the task when the server receives a submit request
+// add the task to the database
 pub async fn add_task(
     Form(emulate_message): Form<EmulateMessage>,
-    State(state): State<SharedState>,
+    State(state): State<ServerState>,
 ) -> (StatusCode, Json<Value>) {
     info!("Consume task in submit request");
 
-    let min_vexec_shots =
-        service::task_active::TaskActive::get_min_vexec_shots(&state.write().await.db)
-            .await
-            .unwrap();
+    let min_vexec_shots = service::task_active::TaskActive::get_min_vexec_shots(&state.db)
+        .await
+        .unwrap();
 
     // add this task to the database
     match service::task_active::TaskActive::add_task(
-        &state.write().await.db,
+        &state.db,
         entity::task_active::Model {
             id: uuid::Uuid::new_v4(),
             source: emulate_message.code.clone(),
@@ -199,13 +133,13 @@ pub async fn add_task(
 /// Consume the task when there are some waiting tasks and available agents
 pub async fn consume_task(
     db: &DbConn,
-    shed_min_depth: f32,
-    shed_min_gran: f32,
+    sched_min_depth: f32,
+    sched_min_gran: f32,
     task: entity::task_active::Model,
     agent: entity::physical_agent::Model,
 ) {
     // get exec shots according to the min depth and gran
-    let mut exec_shots = (task.depth as f32 / shed_min_depth * shed_min_gran) as i32;
+    let mut exec_shots = (task.depth as f32 / sched_min_depth * sched_min_gran) as i32;
     if task.exec_shots + exec_shots > task.shots {
         exec_shots = task.shots - task.exec_shots;
     }
@@ -265,7 +199,7 @@ pub async fn consume_task(
                 &result.unwrap().json::<Value>().await.unwrap(),
             );
 
-            // if the task is finished
+            // if the task is finisched
             if task.exec_shots + exec_shots >= task.shots {
                 service::task_active::TaskActive::remove_active_task(db, task.id)
                     .await
@@ -287,7 +221,7 @@ pub async fn consume_task(
                 .await
                 .unwrap();
             } else {
-                // if the task is not finished
+                // if the task is not finisched
                 service::task_active::TaskActive::update_task_result(
                     db,
                     task.id,
@@ -347,7 +281,7 @@ pub async fn consume_task(
 }
 
 /// Submit the task to the server
-pub async fn submit(state: State<SharedState>, request: Request) -> (StatusCode, Json<Value>) {
+pub async fn submit(state: State<ServerState>, request: Request) -> (StatusCode, Json<Value>) {
     match request.headers().get(header::CONTENT_TYPE) {
         // If the content type is correct, consume the task
         Some(content_type) => match content_type.to_str().unwrap() {
@@ -380,6 +314,7 @@ pub async fn submit(state: State<SharedState>, request: Request) -> (StatusCode,
     }
 }
 
+/// Get the task status by task id
 pub async fn _get_task(db: &DbConn, task_id: Uuid) -> (StatusCode, Json<Value>) {
     info!("Get task status by task id: {:?}", task_id);
     let db = db;
@@ -467,19 +402,20 @@ pub async fn _get_task(db: &DbConn, task_id: Uuid) -> (StatusCode, Json<Value>) 
 
 /// Get the task status by task id
 pub async fn get_task(
-    State(state): State<SharedState>,
+    State(state): State<ServerState>,
     Query(query_message): Query<TaskID>,
 ) -> (StatusCode, Json<Value>) {
     _get_task(
-        &state.write().await.db,
+        &state.db,
         uuid::Uuid::parse_str(&query_message.task_id).unwrap(),
     )
     .await
 }
 
+/// Get the task status by task id
 pub async fn get_task_with_id(
-    State(state): State<SharedState>,
+    State(state): State<ServerState>,
     Path(task_id): Path<Uuid>,
 ) -> (StatusCode, Json<Value>) {
-    _get_task(&state.write().await.db, task_id).await
+    _get_task(&state.db, task_id).await
 }

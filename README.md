@@ -39,5 +39,5 @@ To generate a new entity from the database, please use the following command:
 
 ```bash
 cd ../
-sea-orm-cli generate entity -o src/entity/
+sea-orm-cli generate entity -o src/entity/ --with-serde=both
 ```

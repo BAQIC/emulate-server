@@ -11,17 +11,35 @@ impl PhysicalAgent {
         db: &DbConn,
         data: physical_agent::Model,
     ) -> Result<physical_agent::Model, sea_orm::prelude::DbErr> {
-        physical_agent::ActiveModel {
-            id: Set(data.id.to_owned()),
-            status: Set(data.status.to_owned()),
-            ip: Set(data.ip.to_owned()),
-            port: Set(data.port.to_owned()),
-            qubit_count: Set(data.qubit_count.to_owned()),
-            qubit_idle: Set(data.qubit_idle.to_owned()),
-            circuit_depth: Set(data.circuit_depth.to_owned()),
+        match physical_agent::Entity::find()
+            .filter(physical_agent::Column::Ip.eq(data.ip.to_owned()))
+            .filter(physical_agent::Column::Port.eq(data.port))
+            .one(db)
+            .await
+        {
+            Ok(Some(_)) => {
+                return Err(sea_orm::prelude::DbErr::Custom(format!(
+                    "Physical agent {}:{} already exists",
+                    data.ip, data.port
+                )));
+            }
+            Ok(None) => {
+                physical_agent::ActiveModel {
+                    id: Set(data.id.to_owned()),
+                    status: Set(data.status.to_owned()),
+                    ip: Set(data.ip.to_owned()),
+                    port: Set(data.port.to_owned()),
+                    qubit_count: Set(data.qubit_count.to_owned()),
+                    qubit_idle: Set(data.qubit_idle.to_owned()),
+                    circuit_depth: Set(data.circuit_depth.to_owned()),
+                }
+                .insert(db)
+                .await
+            }
+            Err(err) => {
+                return Err(err);
+            }
         }
-        .insert(db)
-        .await
     }
 
     pub async fn get_most_available_physical_agent(
@@ -81,6 +99,28 @@ impl PhysicalAgent {
         physical_agent::Entity::find_by_id(agent_id).one(db).await
     }
 
+    pub async fn get_physical_agent_by_address(
+        db: &DbConn,
+        agent_ip: String,
+        port: i32,
+    ) -> Result<Option<physical_agent::Model>, sea_orm::prelude::DbErr> {
+        physical_agent::Entity::find()
+            .filter(physical_agent::Column::Ip.eq(agent_ip))
+            .filter(physical_agent::Column::Port.eq(port))
+            .one(db)
+            .await
+    }
+
+    pub async fn get_physical_agent_by_ip(
+        db: &DbConn,
+        agent_ip: String,
+    ) -> Result<Vec<physical_agent::Model>, sea_orm::prelude::DbErr> {
+        physical_agent::Entity::find()
+            .filter(physical_agent::Column::Ip.eq(agent_ip))
+            .all(db)
+            .await
+    }
+
     pub async fn update_physical_agent_qubits_idle(
         db: &DbConn,
         agent_id: uuid::Uuid,
@@ -108,6 +148,27 @@ impl PhysicalAgent {
             .into();
 
         agent.status = Set(status);
+        agent.update(db).await
+    }
+
+    pub async fn update_physical_agent(
+        db: &DbConn,
+        agent_id: uuid::Uuid,
+        data: physical_agent::Model,
+    ) -> Result<physical_agent::Model, sea_orm::prelude::DbErr> {
+        let mut agent: physical_agent::ActiveModel = physical_agent::Entity::find_by_id(agent_id)
+            .one(db)
+            .await?
+            .unwrap()
+            .into();
+
+        agent.status = Set(data.status);
+        agent.ip = Set(data.ip);
+        agent.port = Set(data.port);
+        agent.qubit_count = Set(data.qubit_count);
+        agent.qubit_idle = Set(data.qubit_idle);
+        agent.circuit_depth = Set(data.circuit_depth);
+
         agent.update(db).await
     }
 

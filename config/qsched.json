@@ -1,0 +1,4 @@
+{
+    "sched_min_gran": 200,
+    "sched_min_depth": 10
+}
