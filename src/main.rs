@@ -125,10 +125,6 @@ fn main() {
                 routing::get(router::physical_agent::get_physical_agent_by_address),
             )
             .route(
-                "/update_agent_status",
-                routing::get(router::physical_agent::update_physical_agent_status),
-            )
-            .route(
                 "/update_agent",
                 routing::get(router::physical_agent::update_physical_agent),
             )

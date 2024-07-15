@@ -136,38 +136,33 @@ impl PhysicalAgent {
         agent.update(db).await
     }
 
-    pub async fn update_physical_agent_status(
-        db: &DbConn,
-        agent_id: uuid::Uuid,
-        status: sea_orm_active_enums::PhysicalAgentStatus,
-    ) -> Result<physical_agent::Model, sea_orm::prelude::DbErr> {
-        match physical_agent::Entity::find_by_id(agent_id).one(db).await? {
-            Some(agent) => {
-                let mut agent: physical_agent::ActiveModel = agent.into();
-                agent.status = Set(status);
-                agent.update(db).await
-            }
-            None => Err(sea_orm::prelude::DbErr::RecordNotFound(format!(
-                "Physical agent {} not found",
-                agent_id
-            ))),
-        }
-    }
-
     pub async fn update_physical_agent(
         db: &DbConn,
         agent_id: uuid::Uuid,
-        data: physical_agent::Model,
+        agent_ip: Option<String>,
+        agent_port: Option<i32>,
+        agent_qubit_count: Option<i32>,
+        agent_circuit_depth: Option<i32>,
+        agent_status: Option<sea_orm_active_enums::PhysicalAgentStatus>,
     ) -> Result<physical_agent::Model, sea_orm::prelude::DbErr> {
         match physical_agent::Entity::find_by_id(agent_id).one(db).await? {
             Some(agent) => {
                 let mut agent: physical_agent::ActiveModel = agent.into();
-                agent.status = Set(data.status);
-                agent.ip = Set(data.ip);
-                agent.port = Set(data.port);
-                agent.qubit_count = Set(data.qubit_count);
-                agent.qubit_idle = Set(data.qubit_idle);
-                agent.circuit_depth = Set(data.circuit_depth);
+                if agent_ip.is_some() {
+                    agent.ip = Set(agent_ip.unwrap());
+                }
+                if agent_port.is_some() {
+                    agent.port = Set(agent_port.unwrap());
+                }
+                if agent_qubit_count.is_some() {
+                    agent.qubit_count = Set(agent_qubit_count.unwrap());
+                }
+                if agent_circuit_depth.is_some() {
+                    agent.circuit_depth = Set(agent_circuit_depth.unwrap());
+                }
+                if agent_status.is_some() {
+                    agent.status = Set(agent_status.unwrap());
+                }
                 agent.update(db).await
             }
             None => Err(sea_orm::prelude::DbErr::RecordNotFound(format!(

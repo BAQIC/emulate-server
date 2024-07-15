@@ -21,10 +21,29 @@ pub enum AgentStatus {
     Down,
 }
 
+#[derive(Debug, PartialEq, Eq)]
+pub struct ParseAgentStatusError;
+
+impl fmt::Display for ParseAgentStatusError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Invalid agent status")
+    }
+}
+
+impl FromStr for AgentStatus {
+    type Err = ParseAgentStatusError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "running" => Ok(AgentStatus::Running),
+            "down" => Ok(AgentStatus::Down),
+            _ => Err(ParseAgentStatusError),
+        }
+    }
+}
+
 #[derive(Deserialize, Debug)]
 pub struct AgentInfo {
-    #[serde(default, deserialize_with = "empty_string_as_none")]
-    pub id: Option<Uuid>,
     pub ip: String,
     pub port: u32,
     pub qubit_count: u32,
@@ -32,9 +51,18 @@ pub struct AgentInfo {
 }
 
 #[derive(Deserialize, Debug)]
-pub struct AgentStatusUpdate {
+pub struct AgentInfoUpdate {
     pub id: Uuid,
-    pub status: AgentStatus,
+    #[serde(default, deserialize_with = "empty_string_as_none")]
+    pub ip: Option<String>,
+    #[serde(default, deserialize_with = "empty_string_as_none")]
+    pub port: Option<u32>,
+    #[serde(default, deserialize_with = "empty_string_as_none")]
+    pub qubit_count: Option<u32>,
+    #[serde(default, deserialize_with = "empty_string_as_none")]
+    pub circuit_depth: Option<u32>,
+    #[serde(default, deserialize_with = "empty_string_as_none")]
+    pub status: Option<AgentStatus>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -218,87 +246,48 @@ pub async fn get_physical_agent_by_address(
     }
 }
 
-pub async fn update_physical_agent_status(
+/// Update the physical agent with the given id
+/// TODO: update the physical agent after tasks are done
+pub async fn update_physical_agent(
     State(state): State<ServerState>,
-    Query(query_message): Query<AgentStatusUpdate>,
+    Query(query_message): Query<AgentInfoUpdate>,
 ) -> (StatusCode, Json<Value>) {
+    info!(
+        "Update physical agent {:?} with address {:?}:{:?}, qubit_count {:?}, circuit_depth {:?}, status {:?}",
+        query_message.id, query_message.ip, query_message.port, query_message.qubit_count, query_message.circuit_depth, query_message.status
+    );
+
     let db = &state.db;
-    match service::physical_agent::PhysicalAgent::update_physical_agent_status(
+
+    match service::physical_agent::PhysicalAgent::update_physical_agent(
         db,
         query_message.id,
-        match query_message.status {
+        query_message.ip,
+        query_message.port.map(|x| x as i32),
+        query_message.qubit_count.map(|x| x as i32),
+        query_message.circuit_depth.map(|x| x as i32),
+        query_message.status.map(|x| match x {
             AgentStatus::Running => sea_orm_active_enums::PhysicalAgentStatus::Running,
             AgentStatus::Down => sea_orm_active_enums::PhysicalAgentStatus::Down,
-        },
+        }),
     )
     .await
     {
-        Ok(_) => {
-            info!("Update physical agent status successfully");
+        Ok(agent) => {
+            info!("Update physical agent successfully");
             (
                 StatusCode::OK,
-                Json(json!({"Message": "Update physical agent status successfully"})),
+                Json(json!({
+                    "agent": agent,
+                })),
             )
         }
         Err(err) => {
-            error!("Update physical agent status failed: {}", err);
+            error!("Update physical agent failed: {}", err);
             (
                 StatusCode::BAD_REQUEST,
                 Json(json!({"Error": format!("{}", err)})),
             )
         }
-    }
-}
-
-/// Update the physical agent with the given id
-/// Todo: only update some fields
-pub async fn update_physical_agent(
-    State(state): State<ServerState>,
-    Query(query_message): Query<AgentInfo>,
-) -> (StatusCode, Json<Value>) {
-    info!(
-        "Update physical agent {:?} with {:?}:{:?}",
-        query_message.id, query_message.ip, query_message.port
-    );
-
-    let db = &state.db;
-
-    match query_message.id {
-        Some(_) => {
-            match service::physical_agent::PhysicalAgent::update_physical_agent(
-                db,
-                query_message.id.unwrap(),
-                entity::physical_agent::Model {
-                    id: query_message.id.unwrap(),
-                    status: sea_orm_active_enums::PhysicalAgentStatus::Running,
-                    ip: query_message.ip.clone(),
-                    port: query_message.port as i32,
-                    qubit_count: query_message.qubit_count as i32,
-                    qubit_idle: query_message.qubit_count as i32,
-                    circuit_depth: query_message.circuit_depth as i32,
-                },
-            )
-            .await
-            {
-                Ok(_) => {
-                    info!("Update physical agent successfully");
-                    (
-                        StatusCode::OK,
-                        Json(json!({"Message": "Update physical agent successfully"})),
-                    )
-                }
-                Err(err) => {
-                    error!("Update physical agent failed: {}", err);
-                    (
-                        StatusCode::BAD_REQUEST,
-                        Json(json!({"Error": format!("{}", err)})),
-                    )
-                }
-            }
-        }
-        None => (
-            StatusCode::BAD_REQUEST,
-            Json(json!({"Error": "Agent ID is required"})),
-        ),
     }
 }
