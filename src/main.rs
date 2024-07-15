@@ -130,7 +130,7 @@ fn main() {
             )
             .route(
                 "/update_agent",
-                routing::post(router::physical_agent::update_physical_agent),
+                routing::get(router::physical_agent::update_physical_agent),
             )
             .route("/submit", routing::post(router::task::submit))
             .route("/get_task", routing::get(router::task::get_task))

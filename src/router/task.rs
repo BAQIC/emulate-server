@@ -24,7 +24,7 @@ pub struct EmulateMessage {
 
 #[derive(Deserialize)]
 pub struct TaskID {
-    task_id: String,
+    task_id: Uuid,
 }
 
 /// Merge fields into a json object
@@ -403,13 +403,10 @@ pub async fn _get_task(db: &DbConn, task_id: Uuid) -> (StatusCode, Json<Value>) 
 /// Get the task status by task id
 pub async fn get_task(
     State(state): State<ServerState>,
+    // query only support following format, Query<Uuid> is wrong
     Query(query_message): Query<TaskID>,
 ) -> (StatusCode, Json<Value>) {
-    _get_task(
-        &state.db,
-        uuid::Uuid::parse_str(&query_message.task_id).unwrap(),
-    )
-    .await
+    _get_task(&state.db, query_message.task_id).await
 }
 
 /// Get the task status by task id
