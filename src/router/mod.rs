@@ -8,4 +8,3 @@ pub struct ServerState {
     pub db: DbConn,
     pub config: super::config::QSchedulerConfig,
 }
-

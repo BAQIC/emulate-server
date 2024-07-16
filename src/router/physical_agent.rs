@@ -1,8 +1,10 @@
 use crate::entity;
 use crate::entity::sea_orm_active_enums;
 use crate::service;
-use axum::extract::Query;
+use axum::extract::{Query, Request};
 use axum::{extract::State, http::StatusCode, Json};
+use axum::{Form, RequestExt};
+use http::header;
 use log::{error, info};
 use sea_orm::DbConn;
 use serde::{de, Deserializer};
@@ -97,9 +99,9 @@ pub fn get_agent_info(path: &str) -> Agents {
 }
 
 /// Initialize the qthread with num of physical agents
-pub async fn add_physical_agent(
-    State(state): State<ServerState>,
-    Query(query_message): Query<AgentInfo>,
+async fn _add_physical_agent(
+    state: ServerState,
+    Form(query_message): Form<AgentInfo>,
 ) -> (StatusCode, Json<Value>) {
     info!(
         "Init physical agent (qubits: {}, circuit_depth: {}) with {}:{:?}",
@@ -141,6 +143,38 @@ pub async fn add_physical_agent(
             (
                 StatusCode::BAD_REQUEST,
                 Json(json!({"Error": format!("{}", err)})),
+            )
+        }
+    }
+}
+
+pub async fn add_physical_agent(
+    State(state): State<ServerState>,
+    request: Request,
+) -> (StatusCode, Json<Value>) {
+    match request.headers().get(header::CONTENT_TYPE) {
+        Some(content_type) => match content_type.to_str().unwrap() {
+            "application/json" => {
+                let Form(message) = request.extract().await.unwrap();
+                _add_physical_agent(state, Form(message)).await
+            }
+            "application/x-www-form-urlencoded" => {
+                let Form(message) = request.extract().await.unwrap();
+                _add_physical_agent(state, Form(message)).await
+            }
+            _ => {
+                error!("Add physical agents failed: Invalid content type");
+                (
+                    StatusCode::BAD_REQUEST,
+                    Json(json!({"Error": "Invalid content type"})),
+                )
+            }
+        },
+        None => {
+            error!("Add physical agents failed: No content type");
+            (
+                StatusCode::BAD_REQUEST,
+                Json(json!({"Error": "No content type"})),
             )
         }
     }
@@ -248,9 +282,9 @@ pub async fn get_physical_agent_by_address(
 
 /// Update the physical agent with the given id
 /// TODO: update the physical agent after tasks are done
-pub async fn update_physical_agent(
-    State(state): State<ServerState>,
-    Query(query_message): Query<AgentInfoUpdate>,
+async fn _update_physical_agent(
+    state: ServerState,
+    Form(query_message): Form<AgentInfoUpdate>,
 ) -> (StatusCode, Json<Value>) {
     info!(
         "Update physical agent {:?} with address {:?}:{:?}, qubit_count {:?}, circuit_depth {:?}, status {:?}",
@@ -258,6 +292,7 @@ pub async fn update_physical_agent(
     );
 
     let db = &state.db;
+
 
     match service::physical_agent::PhysicalAgent::update_physical_agent(
         db,
@@ -287,6 +322,38 @@ pub async fn update_physical_agent(
             (
                 StatusCode::BAD_REQUEST,
                 Json(json!({"Error": format!("{}", err)})),
+            )
+        }
+    }
+}
+
+pub async fn update_physical_agent(
+    State(state): State<ServerState>,
+    request: Request,
+) -> (StatusCode, Json<Value>) {
+    match request.headers().get(header::CONTENT_TYPE) {
+        Some(content_type) => match content_type.to_str().unwrap() {
+            "application/json" => {
+                let Form(message) = request.extract().await.unwrap();
+                _update_physical_agent(state, Form(message)).await
+            }
+            "application/x-www-form-urlencoded" => {
+                let Form(message) = request.extract().await.unwrap();
+                _update_physical_agent(state, Form(message)).await
+            }
+            _ => {
+                error!("Update physical agent failed: Invalid content type");
+                (
+                    StatusCode::BAD_REQUEST,
+                    Json(json!({"Error": "Invalid content type"})),
+                )
+            }
+        },
+        None => {
+            error!("Update physical agent failed: No content type");
+            (
+                StatusCode::BAD_REQUEST,
+                Json(json!({"Error": "No content type"})),
             )
         }
     }

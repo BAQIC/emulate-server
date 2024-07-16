@@ -79,8 +79,8 @@ pub async fn invoke_agent(
 
 // add the task to the database
 pub async fn add_task(
+    state: ServerState,
     Form(emulate_message): Form<EmulateMessage>,
-    State(state): State<ServerState>,
 ) -> (StatusCode, Json<Value>) {
     info!("Consume task in submit request");
 
@@ -281,17 +281,20 @@ pub async fn consume_task(
 }
 
 /// Submit the task to the server
-pub async fn submit(state: State<ServerState>, request: Request) -> (StatusCode, Json<Value>) {
+pub async fn submit(
+    State(state): State<ServerState>,
+    request: Request,
+) -> (StatusCode, Json<Value>) {
     match request.headers().get(header::CONTENT_TYPE) {
         // If the content type is correct, consume the task
         Some(content_type) => match content_type.to_str().unwrap() {
             "application/x-www-form-urlencoded" => {
                 let Form(emulate_message) = request.extract().await.unwrap();
-                add_task(Form(emulate_message), state).await
+                add_task(state, Form(emulate_message)).await
             }
             "application/json" => {
                 let Json::<EmulateMessage>(emulate_message) = request.extract().await.unwrap();
-                add_task(Form(emulate_message), state).await
+                add_task(state, Form(emulate_message)).await
             }
             _ => {
                 error!(

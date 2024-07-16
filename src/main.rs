@@ -1,3 +1,15 @@
+//! # Quantum Scheduler
+//! This is the main entry point for the quantum task scheduler. It is
+//! responsible for starting the web server and the task consumer thread. The
+//! web server is responsible for receiving task submissions and returning task
+//! information. The task consumer thread is responsible for consuming waiting
+//! tasks and submitting them to idle agents.
+//!
+//! ## Web Server
+//! The web server is built using the [Axum](https://github.com/tokio-rs/axum) framework.
+//! It listens on port 3000 and has the following endpoints:
+//! - `POST /submit`: Submit a new task to the scheduler
+
 use axum::{routing, Router};
 use log::info;
 use migration::{Migrator, MigratorTrait};
@@ -118,7 +130,7 @@ fn main() {
         let emulator_router = Router::new()
             .route(
                 "/add_agent",
-                routing::get(router::physical_agent::add_physical_agent),
+                routing::post(router::physical_agent::add_physical_agent),
             )
             .route(
                 "/get_agents",
@@ -126,7 +138,7 @@ fn main() {
             )
             .route(
                 "/update_agent",
-                routing::get(router::physical_agent::update_physical_agent),
+                routing::post(router::physical_agent::update_physical_agent),
             )
             .route("/submit", routing::post(router::task::submit))
             .route("/get_task", routing::get(router::task::get_task))
