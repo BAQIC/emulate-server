@@ -20,17 +20,17 @@
 //!   get_task/1.
 //! - `POST /add_agent`: Add a new agent to the scheduler, the content type can
 //!  be either `application/json` or `application/x-www-form-urlencoded`. The
-//! body content should be [AgentInfo](router::physical_agent_utils::AgentInfo). And
-//! if the agent ip and port is the same as the existing agent, the post request
-//! will be ignored.
+//! body content should be [AgentInfo](router::physical_agent_utils::AgentInfo).
+//! And if the agent ip and port is the same as the existing agent, the post
+//! request will be ignored.
 //! - `GET /get_agents`: Get all relative information of agents according to the
 //!   ip and port. The ip and port is passed as a query parameter. For example
 //! get_agents?ip=127.0.0.1&port=1234. The port is optional.
 //! - `POST /update_agent`: Update the agent information. The content type can
 //!   be either `application/json` or `application/x-www-form-urlencoded`. The
 //!   body content should be
-//!   [AgentInfo](router::physical_agent_utils::AgentInfoUpdate). Except for the ID,
-//!   all other fields are optional.
+//!   [AgentInfo](router::physical_agent_utils::AgentInfoUpdate). Except for the
+//!   ID, all other fields are optional.
 //!
 //! ## Task Consumer Thread
 //! The task consumer thread is responsible for consuming waiting tasks and
@@ -73,11 +73,14 @@ fn main() {
             let base_url =
                 std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".to_owned());
 
+            let agent_file = std::env::var("AGENT_FILE").unwrap_or_else(|_| "config/agents.json".to_owned());
+
             info!("Consume waiting task thread connect database: {}", base_url);
+            info!("Consume waiting task thread read agents from file: {}", agent_file);
 
             // read sheduler config and agents infomation from json file
             let sched_conf = config::get_qsched_config("config/qsched.json");
-            let agents = get_agent_info("config/agents.json");
+            let agents = get_agent_info(&agent_file);
 
             // disable sqlx logging
             let mut connection_options = ConnectOptions::new(base_url);
