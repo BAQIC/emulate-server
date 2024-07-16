@@ -41,3 +41,11 @@ To generate a new entity from the database, please use the following command:
 cd ../
 sea-orm-cli generate entity -o src/entity/ --with-serde=both
 ```
+
+## Generate the documentation
+
+To generate the documentation, please use the following command:
+
+```bash
+cargo doc --bins --document-private-items --no-deps
+```
