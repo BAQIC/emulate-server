@@ -1,3 +1,6 @@
+//! The module that contains the physical agent router. The physical agent
+//! router is used to add, get, and update the physical agent information.
+
 use crate::entity;
 use crate::entity::sea_orm_active_enums;
 use crate::service;
@@ -12,6 +15,9 @@ use serde_json::{json, Value};
 use super::physical_agent_utils::{AgentAddress, AgentInfo, AgentInfoUpdate, AgentStatus, Agents};
 use super::ServerState;
 
+/// ## Get Agent Info
+/// Get the agent information from the given path and return the Agents struct.
+/// If the file does not exist, return an empty Agents struct.
 pub fn get_agent_info(path: &str) -> Agents {
     if !std::path::Path::new(path).exists() {
         error!("Agents info file not found");
@@ -23,7 +29,7 @@ pub fn get_agent_info(path: &str) -> Agents {
     }
 }
 
-/// Initialize the qthread with num of physical agents
+/// Internal function to add a physical agent to the database
 async fn _add_physical_agent(
     state: ServerState,
     Form(query_message): Form<AgentInfo>,
@@ -68,6 +74,11 @@ async fn _add_physical_agent(
     }
 }
 
+/// ## Add Physical Agent
+/// Add a physical agent to the database. The agent information is passed in the
+/// request body. The request body can be either JSON or form-urlencoded. If the
+/// agent ip and port is the same as the existing agent, the post request will
+/// return an error.
 pub async fn add_physical_agent(
     State(state): State<ServerState>,
     request: Request,
@@ -100,6 +111,10 @@ pub async fn add_physical_agent(
     }
 }
 
+/// ## Add Physical Agent From File
+/// Add physical agents to the database from the given file. The file should
+/// contain the agent information in JSON format. This function is used by the
+/// consume task thread.
 pub async fn add_physical_agent_from_file(db: &DbConn, agents: Agents) {
     for agent in agents.agents {
         match service::physical_agent::PhysicalAgent::add_physical_agent(
@@ -134,6 +149,9 @@ pub async fn add_physical_agent_from_file(db: &DbConn, agents: Agents) {
     }
 }
 
+/// ## Get Physical Agent By Address
+/// Get the physical agent by the given ip and port. If the port is not
+/// provided, return all the agents with the given ip.
 pub async fn get_physical_agent_by_address(
     State(state): State<ServerState>,
     Query(query_message): Query<AgentAddress>,
@@ -211,7 +229,7 @@ pub async fn get_physical_agent_by_address(
     }
 }
 
-/// Update the physical agent with the given id
+/// Internal function to update the physical agent with the given id
 /// TODO: update the physical agent after tasks are done
 async fn _update_physical_agent(
     state: ServerState,
@@ -257,6 +275,12 @@ async fn _update_physical_agent(
     }
 }
 
+/// ## Update Physical Agent
+/// Update the physical agent with the given id. The agent information is passed
+/// in the request body. The request body can be either JSON or form-urlencoded.
+/// Except for the ID, all other fields are optional. Please refer to the
+/// [AgentInfoUpdate](super::physical_agent_utils::AgentInfoUpdate) struct for
+/// more information.
 pub async fn update_physical_agent(
     State(state): State<ServerState>,
     request: Request,

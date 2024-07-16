@@ -1,7 +1,7 @@
 use sea_orm::DbConn;
 
 pub mod physical_agent;
-mod physical_agent_utils;
+pub mod physical_agent_utils;
 pub mod task;
 
 /// ## Server State

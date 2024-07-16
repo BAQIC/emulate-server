@@ -6,6 +6,8 @@ use sea_orm::{
 pub struct TaskActive;
 
 impl TaskActive {
+    /// Add a new task to the database. If there is no available physical agent,
+    /// it will return an error.
     pub async fn add_task(
         db: &DbConn,
         data: task_active::Model,
@@ -44,6 +46,8 @@ impl TaskActive {
         }
     }
 
+    /// Get all the tasks that are waiting to be executed. The tasks are ordered
+    /// by the number of virtual executed shots in ascending order.
     pub async fn get_asc_tasks(
         db: &DbConn,
     ) -> Result<Vec<task_active::Model>, sea_orm::prelude::DbErr> {
@@ -54,6 +58,7 @@ impl TaskActive {
             .await
     }
 
+    /// Get the task with the given ID.
     pub async fn get_task(
         db: &DbConn,
         task_id: uuid::Uuid,
@@ -61,6 +66,9 @@ impl TaskActive {
         task_active::Entity::find_by_id(task_id).one(db).await
     }
 
+    /// Get the minimum number of virtual executed shots of the tasks that are
+    /// waiting to be executed. This function is used to update the vexec_shots
+    /// for the new task.
     pub async fn get_min_vexec_shots(db: &DbConn) -> Result<i32, sea_orm::prelude::DbErr> {
         match task_active::Entity::find()
             .filter(task_active::Column::Status.eq(sea_orm_active_enums::TaskActiveStatus::Waiting))
@@ -74,6 +82,7 @@ impl TaskActive {
         }
     }
 
+    /// Update the task result with the given information.
     pub async fn update_task_result(
         db: &DbConn,
         task_id: uuid::Uuid,
@@ -95,6 +104,8 @@ impl TaskActive {
         task.update(db).await
     }
 
+    /// Remove the task with the given ID. After removing it, the task will be
+    /// added to the history task table.
     pub async fn remove_active_task(
         db: &DbConn,
         task_id: uuid::Uuid,

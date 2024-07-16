@@ -7,6 +7,8 @@ use sea_orm::{
 pub struct PhysicalAgent;
 
 impl PhysicalAgent {
+    /// Add a new physical agent to the database. If the agent already exists,
+    /// it will return an error.
     pub async fn add_physical_agent(
         db: &DbConn,
         data: physical_agent::Model,
@@ -42,6 +44,10 @@ impl PhysicalAgent {
         }
     }
 
+    /// Given the number of qubits and the depth of the circuit, return the most
+    /// available physical agent. If there is no available agent, it will return
+    /// `None`. The most available means the agent has the most idle qubits and
+    /// the depth and qubits are enough for the task.
     pub async fn get_most_available_physical_agent(
         db: &DbConn,
         task_qubits: u32,
@@ -67,6 +73,10 @@ impl PhysicalAgent {
         }
     }
 
+    /// Given the number of qubits and the depth of the circuit, return the
+    /// least available physical agent. If there is no available agent, it
+    /// will return `None`. The least available means the agent has the
+    /// least idle qubits and the depth and qubits are enough for the task.
     pub async fn get_least_available_physical_agent(
         db: &DbConn,
         task_qubits: u32,
@@ -92,6 +102,8 @@ impl PhysicalAgent {
         }
     }
 
+    /// Get the physical agent by the given ID. If the agent does not exist,
+    /// it will return `None`.
     pub async fn get_physical_agent(
         db: &DbConn,
         agent_id: uuid::Uuid,
@@ -99,6 +111,8 @@ impl PhysicalAgent {
         physical_agent::Entity::find_by_id(agent_id).one(db).await
     }
 
+    /// Get the physical agent by the given address (ip and port). If the agent
+    /// does not exist, it will return `None`.
     pub async fn get_physical_agent_by_address(
         db: &DbConn,
         agent_ip: String,
@@ -111,6 +125,8 @@ impl PhysicalAgent {
             .await
     }
 
+    /// Get the physical agent by the given IP address. If the agent does not
+    /// exist, it will return an empty vector.
     pub async fn get_physical_agent_by_ip(
         db: &DbConn,
         agent_ip: String,
@@ -121,6 +137,10 @@ impl PhysicalAgent {
             .await
     }
 
+    /// Given the number of qubits and the depth of the circuit, return the
+    /// available physical agents. The available means the agent has the
+    /// enough qubits and the depth and qubits are enough for the task. This
+    /// function is used to check whether a task can be executed by the agents.
     pub async fn get_physical_agent_available(
         db: &DbConn,
         task_qubits: i32,
@@ -133,13 +153,16 @@ impl PhysicalAgent {
                         physical_agent::Column::Status
                             .eq(sea_orm_active_enums::PhysicalAgentStatus::Running),
                     )
-                    .add(physical_agent::Column::QubitIdle.gte(task_qubits))
+                    .add(physical_agent::Column::QubitCount.gte(task_qubits))
                     .add(physical_agent::Column::CircuitDepth.gte(task_depth)),
             )
             .all(db)
             .await
     }
 
+    /// Update the idle qubits of the physical agent. This function is used by
+    /// consume task thread to update the idle qubits of the agent before/after
+    /// running a task.
     pub async fn update_physical_agent_qubits_idle(
         db: &DbConn,
         agent_id: uuid::Uuid,
@@ -155,6 +178,7 @@ impl PhysicalAgent {
         agent.update(db).await
     }
 
+    /// Update the physical agent with the given information.
     pub async fn update_physical_agent(
         db: &DbConn,
         agent_id: uuid::Uuid,
@@ -191,6 +215,7 @@ impl PhysicalAgent {
         }
     }
 
+    /// Remove the physical agent by the given ID.
     pub async fn remove_physical_agent(
         db: &DbConn,
         agent_id: uuid::Uuid,

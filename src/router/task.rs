@@ -1,3 +1,8 @@
+//! The modult that contains the task router. The task router is responsible for
+//! handling the task submit and get task status requests. The task submit
+//! request is used to submit a task to the scheduler. The get task status
+//! request is used to get the task status by task id.
+
 use super::ServerState;
 use crate::entity;
 use crate::entity::sea_orm_active_enums;

@@ -4,6 +4,7 @@ use sea_orm::{ActiveModelTrait, ActiveValue, DbConn, EntityTrait};
 pub struct Task;
 
 impl Task {
+    /// Add a new task to the database after the task is succeeded or failed.
     pub async fn add_task(
         db: &DbConn,
         data: task::Model,
@@ -23,6 +24,7 @@ impl Task {
         .await
     }
 
+    /// Get the task with the given task id.
     pub async fn get_task(
         db: &DbConn,
         task_id: uuid::Uuid,

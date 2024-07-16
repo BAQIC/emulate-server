@@ -1,9 +1,12 @@
 use crate::entity::*;
-use sea_orm::{ActiveModelTrait, ActiveValue, DbConn, EntityTrait};
+use sea_orm::{ActiveModelTrait, ActiveValue, ColumnTrait, DbConn, EntityTrait, QueryFilter};
 
 pub struct TaskAssignment;
 
 impl TaskAssignment {
+    /// Add a new task assignment to the database. This table is used to record
+    /// the assignment of tasks to agents. The task assignment includes the task
+    /// id, the agent id, the number of shots, and the status of the assignment.
     pub async fn add_assignment(
         db: &DbConn,
         data: task_assignment::Model,
@@ -19,6 +22,8 @@ impl TaskAssignment {
         .await
     }
 
+    /// Update the status of the task assignment. The status can be `Runnig`,
+    /// `Succeeded` or `Failed`.
     pub async fn update_assignment_status(
         db: &DbConn,
         assign_id: uuid::Uuid,
@@ -34,17 +39,25 @@ impl TaskAssignment {
         assignment.update(db).await
     }
 
+    /// Get the task assignment with the given task id.
     pub async fn get_assignment_by_task(
         db: &DbConn,
         task_id: uuid::Uuid,
     ) -> Result<Vec<task_assignment::Model>, sea_orm::prelude::DbErr> {
-        task_assignment::Entity::find_by_id(task_id).all(db).await
+        task_assignment::Entity::find()
+            .filter(task_assignment::Column::TaskId.eq(task_id))
+            .all(db)
+            .await
     }
 
+    /// Get the task assignment with the given agent id.
     pub async fn get_assignment_by_agent(
         db: &DbConn,
         agent_id: uuid::Uuid,
     ) -> Result<Vec<task_assignment::Model>, sea_orm::prelude::DbErr> {
-        task_assignment::Entity::find_by_id(agent_id).all(db).await
+        task_assignment::Entity::find()
+            .filter(task_assignment::Column::AgentId.eq(agent_id))
+            .all(db)
+            .await
     }
 }

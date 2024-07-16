@@ -20,7 +20,7 @@
 //!   get_task/1.
 //! - `POST /add_agent`: Add a new agent to the scheduler, the content type can
 //!  be either `application/json` or `application/x-www-form-urlencoded`. The
-//! body content should be [AgentInfo](router::physical_agent::AgentInfo). And
+//! body content should be [AgentInfo](router::physical_agent_utils::AgentInfo). And
 //! if the agent ip and port is the same as the existing agent, the post request
 //! will be ignored.
 //! - `GET /get_agents`: Get all relative information of agents according to the
@@ -29,7 +29,7 @@
 //! - `POST /update_agent`: Update the agent information. The content type can
 //!   be either `application/json` or `application/x-www-form-urlencoded`. The
 //!   body content should be
-//!   [AgentInfo](router::physical_agent::AgentInfoUpdate). Except for the ID,
+//!   [AgentInfo](router::physical_agent_utils::AgentInfoUpdate). Except for the ID,
 //!   all other fields are optional.
 //!
 //! ## Task Consumer Thread
