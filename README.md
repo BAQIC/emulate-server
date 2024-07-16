@@ -55,5 +55,5 @@ cargo doc --bins --document-private-items --no-deps
 You can use following command to run the server with the agent file:
 
 ```bash
-docker run -d --network=host --name=emulate-server --restart=always --AGENT_FILE=/agent.json -v /path/to/agent/file:/agent.json emulate-server:latest
+docker run -d --network=host --name=emulate-server --restart=always --env AGENT_FILE=/agent.json -v /path/to/agent/file:/agent.json emulate-server:latest
 ```
