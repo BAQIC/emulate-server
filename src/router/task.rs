@@ -14,6 +14,14 @@ use serde::Deserialize;
 use serde_json::{json, map::Entry, Value};
 use uuid::Uuid;
 
+/// ## Emulate message
+/// The emulate message is used to submit a task to the server. That means the
+/// user can submit a task to the server by sending a POST request with the
+/// emulate message.
+/// - `code`: The code is the quantum assembly code that the user wants to run.
+/// - `qubits`: The number of qubits that the user wants to run.
+/// - `depth`: The depth of the circuit that the user wants to run.
+/// - `shots`: The number of shots that the user wants to run.
 #[derive(Deserialize, Debug)]
 pub struct EmulateMessage {
     code: String,
@@ -22,27 +30,20 @@ pub struct EmulateMessage {
     shots: usize,
 }
 
+/// ## Task ID
+/// The task ID is used to get the task status by task id. The user can get the
+/// task status by sending a GET request with the task id.
+/// - `task_id`: The task id that the user wants to get the status of.
 #[derive(Deserialize)]
 pub struct TaskID {
     task_id: Uuid,
 }
 
-/// Merge fields into a json object
-fn merge_json(v: &Value, fields: Vec<(String, String)>) -> Value {
-    // If v is not an object, return v. Otherwise, merge fields into v
-    match v {
-        Value::Object(m) => {
-            let mut m = m.clone();
-            for (key, value) in fields {
-                m.insert(key, Value::String(value));
-            }
-            Value::Object(m)
-        }
-        v => v.clone(),
-    }
-}
-
-/// merge simulation results from different shots
+/// ## Merge simulation results
+/// Merge the previous result with the new result. This function will merge the
+/// content of `Memory` field in the result. For the same key (same state), the
+/// values will be added together. If the key does not exist in the previous
+/// result, it will be added to the previous result.
 fn merge_and_add(v1: &mut Value, v2: &Value) {
     let v1_memory_map = v1.get_mut("Memory").unwrap().as_object_mut().unwrap();
     let v2_memory_map = v2.get("Memory").unwrap().as_object().unwrap();
@@ -62,7 +63,18 @@ fn merge_and_add(v1: &mut Value, v2: &Value) {
     }
 }
 
-// invoke the agent to run the task
+/// ## Invoke the agent
+/// According to the agent address, invoke the agent's submit API with the
+/// `qasm` and `shots` parameters. The agent will run the task and return the
+/// result. The result is like:
+/// ```json
+/// {
+///    "Memory": {
+///       "00": 1000,
+///       "01": 1000,
+///       "10": 1000,
+///       "11": 1000
+/// }
 async fn invoke_agent(address: &str, qasm: &str, shots: i32) -> Result<Response, reqwest::Error> {
     let body = [("qasm", qasm.to_string()), ("shots", shots.to_string())];
 

@@ -7,90 +7,10 @@ use axum::{Form, RequestExt};
 use http::header;
 use log::{error, info};
 use sea_orm::DbConn;
-use serde::{de, Deserializer};
-use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::{fmt, str::FromStr};
-use uuid::Uuid;
 
+use super::physical_agent_utils::{AgentAddress, AgentInfo, AgentInfoUpdate, AgentStatus, Agents};
 use super::ServerState;
-
-#[derive(Serialize, Deserialize, Debug)]
-pub enum AgentStatus {
-    #[serde(rename = "running")]
-    Running,
-    #[serde(rename = "down")]
-    Down,
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub struct ParseAgentStatusError;
-
-impl fmt::Display for ParseAgentStatusError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Invalid agent status")
-    }
-}
-
-impl FromStr for AgentStatus {
-    type Err = ParseAgentStatusError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "running" => Ok(AgentStatus::Running),
-            "down" => Ok(AgentStatus::Down),
-            _ => Err(ParseAgentStatusError),
-        }
-    }
-}
-
-#[derive(Deserialize, Debug)]
-pub struct AgentInfo {
-    pub ip: String,
-    pub port: u32,
-    pub qubit_count: u32,
-    pub circuit_depth: u32,
-}
-
-#[derive(Deserialize, Debug)]
-pub struct AgentInfoUpdate {
-    pub id: Uuid,
-    #[serde(default, deserialize_with = "empty_string_as_none")]
-    pub ip: Option<String>,
-    #[serde(default, deserialize_with = "empty_string_as_none")]
-    pub port: Option<u32>,
-    #[serde(default, deserialize_with = "empty_string_as_none")]
-    pub qubit_count: Option<u32>,
-    #[serde(default, deserialize_with = "empty_string_as_none")]
-    pub circuit_depth: Option<u32>,
-    #[serde(default, deserialize_with = "empty_string_as_none")]
-    pub status: Option<AgentStatus>,
-}
-
-#[derive(Deserialize, Debug)]
-pub struct Agents {
-    pub agents: Vec<AgentInfo>,
-}
-
-#[derive(Deserialize, Debug)]
-pub struct AgentAddress {
-    pub ip: String,
-    #[serde(default, deserialize_with = "empty_string_as_none")]
-    pub port: Option<u32>,
-}
-
-fn empty_string_as_none<'de, D, T>(de: D) -> Result<Option<T>, D::Error>
-where
-    D: Deserializer<'de>,
-    T: FromStr,
-    T::Err: fmt::Display,
-{
-    let opt = Option::<String>::deserialize(de)?;
-    match opt.as_deref() {
-        None | Some("") => Ok(None),
-        Some(s) => FromStr::from_str(s).map_err(de::Error::custom).map(Some),
-    }
-}
 
 pub fn get_agent_info(path: &str) -> Agents {
     if !std::path::Path::new(path).exists() {
