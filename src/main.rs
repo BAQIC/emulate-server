@@ -8,13 +8,16 @@
 //! ## Web Server
 //! The web server is built using the [Axum](https://github.com/tokio-rs/axum) framework.
 //! It listens on 0.0.0.0:3000 by default and has the following endpoints:
-//! - `POST /submit`: Submit a new task to the scheduler, the content type can
-//!   be either `application/json` or `application/x-www-form-urlencoded`. The
-//!   body content should be [EmulateMessage](router::task::EmulateMessage).
-//! - `GET /get_task`: Get the task status by task id. The task id is passed as
-//!   a query parameter. For example get_task?task_id=1.
-//! - `GET /get_task/:id`: Get the task status by task id. The task id is passed
-//!  as a path parameter. For example get_task/1.
+//! - `POST /submit`: [Submit](router::task::submit) a new task to the
+//!   scheduler, the content type can be either `application/json` or
+//!   `application/x-www-form-urlencoded`. The body content should be
+//!   [EmulateMessage](router::task::EmulateMessage).
+//! - `GET /get_task`: [Get](router::task::get_task) the task status by task id.
+//!   The task id is passed as a query parameter. For example
+//!   get_task?task_id=1.
+//! - `GET /get_task/:id`: [Get](router::task::get_task_with_id) the task status
+//!   by task id. The task id is passed as a path parameter. For example
+//!   get_task/1.
 //! - `POST /add_agent`: Add a new agent to the scheduler, the content type can
 //!  be either `application/json` or `application/x-www-form-urlencoded`. The
 //! body content should be [AgentInfo](router::physical_agent::AgentInfo). And
@@ -32,8 +35,14 @@
 //! ## Task Consumer Thread
 //! The task consumer thread is responsible for consuming waiting tasks and
 //! submitting them to idle agents. First, it read the agents information from a
-//! json file and add them to the database. Then, it checks the waiting tasks
-//! every 1 second.
+//! json file and add them to the database. Then, it checks the waiting tasks in
+//! the database every 1 second. If there are waiting tasks:
+//! - Retrieve the quantum task with the least virtual execution shots
+//!   [vexec_shots](entity::task_active::Model::v_exec_shots).
+//! - Find the least available agent to run the task.
+//! - If there is an available agent, it will submit the task to the agent by
+//!   [consume_task]. If not, it will break the loop and wait for the next
+//!   iteration.
 
 use axum::{routing, Router};
 use log::info;
@@ -172,7 +181,7 @@ fn main() {
                 routing::get(router::task::get_task_with_id),
             )
             .with_state(state);
-        
+
         let listener = tokio::net::TcpListener::bind(format!(
             "{}:{}",
             sched_conf.listen_ip, sched_conf.listen_port

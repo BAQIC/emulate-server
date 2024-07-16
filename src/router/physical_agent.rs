@@ -131,17 +131,12 @@ async fn _add_physical_agent(
     )
     .await
     {
-        Ok(_) => {
+        Ok(agent) => {
             info!(
                 "Add {}:{} physical agents added successfully",
                 query_message.ip, query_message.port
             );
-            (
-                StatusCode::OK,
-                Json(
-                    json!({"Message": format!("Physical Agent {}:{} added successfully", query_message.ip, query_message.port)}),
-                ),
-            )
+            (StatusCode::OK, Json(json!({"agent": agent})))
         }
         Err(err) => {
             error!("Add physical agents failed: {}", err);

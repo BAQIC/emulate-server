@@ -10,21 +10,38 @@ impl TaskActive {
         db: &DbConn,
         data: task_active::Model,
     ) -> Result<task_active::Model, sea_orm::prelude::DbErr> {
-        task_active::ActiveModel {
-            id: ActiveValue::set(data.id.to_owned()),
-            source: ActiveValue::set(data.source.to_owned()),
-            result: ActiveValue::set(data.result.to_owned()),
-            qubits: ActiveValue::set(data.qubits.to_owned()),
-            depth: ActiveValue::set(data.depth.to_owned()),
-            shots: ActiveValue::set(data.shots.to_owned()),
-            exec_shots: ActiveValue::set(data.exec_shots.to_owned()),
-            v_exec_shots: ActiveValue::set(data.v_exec_shots.to_owned()),
-            status: ActiveValue::set(data.status.to_owned()),
-            created_time: ActiveValue::set(data.created_time.to_owned()),
-            updated_time: ActiveValue::set(data.updated_time.to_owned()),
-        }
-        .insert(db)
+        match super::physical_agent::PhysicalAgent::get_physical_agent_available(
+            db,
+            data.qubits,
+            data.depth,
+        )
         .await
+        {
+            Ok(agents) => {
+                if agents.is_empty() {
+                    Err(sea_orm::prelude::DbErr::Custom(
+                        "No available physical agent".to_owned(),
+                    ))
+                } else {
+                    task_active::ActiveModel {
+                        id: ActiveValue::set(data.id.to_owned()),
+                        source: ActiveValue::set(data.source.to_owned()),
+                        result: ActiveValue::set(data.result.to_owned()),
+                        qubits: ActiveValue::set(data.qubits.to_owned()),
+                        depth: ActiveValue::set(data.depth.to_owned()),
+                        shots: ActiveValue::set(data.shots.to_owned()),
+                        exec_shots: ActiveValue::set(data.exec_shots.to_owned()),
+                        v_exec_shots: ActiveValue::set(data.v_exec_shots.to_owned()),
+                        status: ActiveValue::set(data.status.to_owned()),
+                        created_time: ActiveValue::set(data.created_time.to_owned()),
+                        updated_time: ActiveValue::set(data.updated_time.to_owned()),
+                    }
+                    .insert(db)
+                    .await
+                }
+            }
+            Err(err) => Err(err),
+        }
     }
 
     pub async fn get_asc_tasks(

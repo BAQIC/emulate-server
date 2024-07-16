@@ -121,6 +121,25 @@ impl PhysicalAgent {
             .await
     }
 
+    pub async fn get_physical_agent_available(
+        db: &DbConn,
+        task_qubits: i32,
+        task_depth: i32,
+    ) -> Result<Vec<physical_agent::Model>, sea_orm::prelude::DbErr> {
+        physical_agent::Entity::find()
+            .filter(
+                Condition::all()
+                    .add(
+                        physical_agent::Column::Status
+                            .eq(sea_orm_active_enums::PhysicalAgentStatus::Running),
+                    )
+                    .add(physical_agent::Column::QubitIdle.gte(task_qubits))
+                    .add(physical_agent::Column::CircuitDepth.gte(task_depth)),
+            )
+            .all(db)
+            .await
+    }
+
     pub async fn update_physical_agent_qubits_idle(
         db: &DbConn,
         agent_id: uuid::Uuid,

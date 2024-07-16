@@ -28,7 +28,7 @@ pub struct TaskID {
 }
 
 /// Merge fields into a json object
-pub fn merge_json(v: &Value, fields: Vec<(String, String)>) -> Value {
+fn merge_json(v: &Value, fields: Vec<(String, String)>) -> Value {
     // If v is not an object, return v. Otherwise, merge fields into v
     match v {
         Value::Object(m) => {
@@ -42,7 +42,7 @@ pub fn merge_json(v: &Value, fields: Vec<(String, String)>) -> Value {
     }
 }
 
-// merge simulation results from different shots
+/// merge simulation results from different shots
 fn merge_and_add(v1: &mut Value, v2: &Value) {
     let v1_memory_map = v1.get_mut("Memory").unwrap().as_object_mut().unwrap();
     let v2_memory_map = v2.get("Memory").unwrap().as_object().unwrap();
@@ -63,11 +63,7 @@ fn merge_and_add(v1: &mut Value, v2: &Value) {
 }
 
 // invoke the agent to run the task
-pub async fn invoke_agent(
-    address: &str,
-    qasm: &str,
-    shots: i32,
-) -> Result<Response, reqwest::Error> {
+async fn invoke_agent(address: &str, qasm: &str, shots: i32) -> Result<Response, reqwest::Error> {
     let body = [("qasm", qasm.to_string()), ("shots", shots.to_string())];
 
     reqwest::Client::new()
@@ -77,8 +73,8 @@ pub async fn invoke_agent(
         .await
 }
 
-// add the task to the database
-pub async fn add_task(
+/// Internal task submit function
+async fn _submit(
     state: ServerState,
     Form(emulate_message): Form<EmulateMessage>,
 ) -> (StatusCode, Json<Value>) {
@@ -112,13 +108,7 @@ pub async fn add_task(
                 "Task {:?} (qubits: {:?}, depth: {:?}, shots: {:?}) added successfully",
                 task.id, task.qubits, task.depth, task.shots
             );
-            (
-                StatusCode::OK,
-                Json(json!({
-                    "task_id": task.id,
-                    "status": "waiting"
-                })),
-            )
+            (StatusCode::OK, Json(json!({"task": task})))
         }
         Err(err) => {
             error!("Add task failed: {}", err);
@@ -130,7 +120,28 @@ pub async fn add_task(
     }
 }
 
-/// Consume the task when there are some waiting tasks and available agents
+/// ## Consume Task
+/// The consume task function is responsible for submitting the task to the
+///  agent. The main steps are:
+/// - Calculate the number of shots to run the task according to the task's
+/// depth and scheduler configuration. The formula is:
+///  `shots = task.depth / sched_min_depth * sched_min_gran`. That is, the
+/// deeper the circuit, the less shots will be executed in one run.
+/// - Add the [assignment](crate::entity::task_assignment::Model) to the
+///   database.
+/// - Submit the task to the agent by [invoking](invoke_agent) the agent's
+///   submit API.
+/// - Update the agent's qubit_idle field in the database.
+/// - Depending on the result of the task, update the task's result and status
+/// in the database.
+///   - If the task is run for the first time, update the task's result and
+///     status to Waiting.
+///   - If the task is finished, remove the task from the active task list and
+///     add it to the task list.
+///   - If the task is not finished, [merge](merge_and_add) previous result with
+///     the new result and update the task's result and status to Waiting.
+///   - If the invocation fails, remove the task from the active task list and
+///     add it to the task list with the error message.
 pub async fn consume_task(
     db: &DbConn,
     sched_min_depth: f32,
@@ -280,7 +291,11 @@ pub async fn consume_task(
     }
 }
 
-/// Submit the task to the server
+/// ## Submit task
+/// Add the task to the [task_active](crate::entity::task_active::Model) table
+/// if the qubits and depth are less than the agent's qubit_count and circuit
+/// depth. Then, retrieve the virtual execution shots from the task_active
+/// table. If these conditions are not met, return an error message.
 pub async fn submit(
     State(state): State<ServerState>,
     request: Request,
@@ -290,11 +305,11 @@ pub async fn submit(
         Some(content_type) => match content_type.to_str().unwrap() {
             "application/x-www-form-urlencoded" => {
                 let Form(emulate_message) = request.extract().await.unwrap();
-                add_task(state, Form(emulate_message)).await
+                _submit(state, Form(emulate_message)).await
             }
             "application/json" => {
                 let Json::<EmulateMessage>(emulate_message) = request.extract().await.unwrap();
-                add_task(state, Form(emulate_message)).await
+                _submit(state, Form(emulate_message)).await
             }
             _ => {
                 error!(
@@ -317,51 +332,26 @@ pub async fn submit(
     }
 }
 
-/// Get the task status by task id
-pub async fn _get_task(db: &DbConn, task_id: Uuid) -> (StatusCode, Json<Value>) {
+/// Internal get task function
+async fn _get_task(db: &DbConn, task_id: Uuid) -> (StatusCode, Json<Value>) {
     info!("Get task status by task id: {:?}", task_id);
     let db = db;
     match service::task_active::TaskActive::get_task(db, task_id).await {
         Ok(task) => match task {
             Some(task) => {
                 info!("Task {:?} is running", task.id);
-                (
-                    StatusCode::OK,
-                    Json(json!({
-                        "status": "found",
-                        "result": serde_json::from_str::<Value>(&task.result.unwrap()).unwrap(),
-                        "task_id": task.id
-                    })),
-                )
+                (StatusCode::OK, Json(json!({"task": task})))
             }
             None => match service::task::Task::get_task(db, task_id).await {
                 Ok(task) => match task {
                     Some(task) => match task.status {
                         sea_orm_active_enums::TaskStatus::Failed => {
                             info!("Task {:?} is failed", task.id);
-                            (
-                                StatusCode::OK,
-                                Json(merge_json(
-                                    &serde_json::from_str::<Value>(&task.result).unwrap(),
-                                    vec![
-                                        ("status".to_owned(), "failed".to_owned()),
-                                        ("task_id".to_owned(), task.id.to_string()),
-                                    ],
-                                )),
-                            )
+                            (StatusCode::OK, Json(json!({"task": task})))
                         }
                         sea_orm_active_enums::TaskStatus::Succeeded => {
                             info!("Task {:?} is succeeded", task.id);
-                            (
-                                StatusCode::OK,
-                                Json(merge_json(
-                                    &serde_json::from_str::<Value>(&task.result).unwrap(),
-                                    vec![
-                                        ("status".to_owned(), "succeeded".to_owned()),
-                                        ("task_id".to_owned(), task.id.to_string()),
-                                    ],
-                                )),
-                            )
+                            (StatusCode::OK, Json(json!({"task": task})))
                         }
                     },
                     None => {
@@ -370,7 +360,6 @@ pub async fn _get_task(db: &DbConn, task_id: Uuid) -> (StatusCode, Json<Value>) 
                             StatusCode::BAD_REQUEST,
                             Json(json!({
                                 "task_id": task_id,
-                                "status": "error",
                                 "Error": "Task not found"
                             })),
                         )
@@ -382,7 +371,6 @@ pub async fn _get_task(db: &DbConn, task_id: Uuid) -> (StatusCode, Json<Value>) 
                         StatusCode::BAD_REQUEST,
                         Json(json!({
                             "task_id": task_id,
-                            "status": "error",
                             "Error": format!("{}", err)
                         })),
                     )
@@ -395,7 +383,6 @@ pub async fn _get_task(db: &DbConn, task_id: Uuid) -> (StatusCode, Json<Value>) 
                 StatusCode::BAD_REQUEST,
                 Json(json!({
                     "task_id": task_id,
-                    "status": "error",
                     "Error": format!("{}", err)
                 })),
             )
@@ -403,7 +390,14 @@ pub async fn _get_task(db: &DbConn, task_id: Uuid) -> (StatusCode, Json<Value>) 
     }
 }
 
-/// Get the task status by task id
+/// ## Get task by query parameter
+/// Get the task status by task id. First, check if the task is in the
+/// [task_active](crate::entity::task_active::Model) table. If the task is
+/// running/waiting, return the task status. If the task is not in the
+/// task_active table, check if the task is in the
+/// [task](crate::entity::task::Model) table. If the task is Failed/Succeeded,
+/// return the task status. If the task is not in the task table, return an
+/// error message.
 pub async fn get_task(
     State(state): State<ServerState>,
     // query only support following format, Query<Uuid> is wrong
@@ -412,7 +406,8 @@ pub async fn get_task(
     _get_task(&state.db, query_message.task_id).await
 }
 
-/// Get the task status by task id
+/// ## Get task by url path
+/// Please ref to the [get_task] function
 pub async fn get_task_with_id(
     State(state): State<ServerState>,
     Path(task_id): Path<Uuid>,
