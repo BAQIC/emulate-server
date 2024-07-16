@@ -7,12 +7,36 @@
 //!
 //! ## Web Server
 //! The web server is built using the [Axum](https://github.com/tokio-rs/axum) framework.
-//! It listens on port 3000 and has the following endpoints:
-//! - `POST /submit`: Submit a new task to the scheduler
+//! It listens on 0.0.0.0:3000 by default and has the following endpoints:
+//! - `POST /submit`: Submit a new task to the scheduler, the content type can
+//!   be either `application/json` or `application/x-www-form-urlencoded`. The
+//!   body content should be [EmulateMessage](router::task::EmulateMessage).
+//! - `GET /get_task`: Get the task status by task id. The task id is passed as
+//!   a query parameter. For example get_task?task_id=1.
+//! - `GET /get_task/:id`: Get the task status by task id. The task id is passed
+//!  as a path parameter. For example get_task/1.
+//! - `POST /add_agent`: Add a new agent to the scheduler, the content type can
+//!  be either `application/json` or `application/x-www-form-urlencoded`. The
+//! body content should be [AgentInfo](router::physical_agent::AgentInfo). And
+//! if the agent ip and port is the same as the existing agent, the post request
+//! will be ignored.
+//! - `GET /get_agents`: Get all relative information of agents according to the
+//!   ip and port. The ip and port is passed as a query parameter. For example
+//! get_agents?ip=127.0.0.1&port=1234. The port is optional.
+//! - `POST /update_agent`: Update the agent information. The content type can
+//!   be either `application/json` or `application/x-www-form-urlencoded`. The
+//!   body content should be
+//!   [AgentInfo](router::physical_agent::AgentInfoUpdate). Except for the ID,
+//!   all other fields are optional.
+//!
+//! ## Task Consumer Thread
+//! The task consumer thread is responsible for consuming waiting tasks and
+//! submitting them to idle agents. First, it read the agents information from a
+//! json file and add them to the database. Then, it checks the waiting tasks
+//! every 1 second.
 
 use axum::{routing, Router};
 use log::info;
-use migration::{Migrator, MigratorTrait};
 pub use sea_orm::{ConnectOptions, Database, DbConn};
 pub mod config;
 pub mod entity;
@@ -117,13 +141,14 @@ fn main() {
 
         tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
         let db: DbConn = Database::connect(connection_options).await.unwrap();
+
         // drop all tables and re-create them
-        Migrator::fresh(&db).await.unwrap();
+        // Migrator::fresh(&db).await.unwrap();
 
         // todo: read config from yaml file
         let state = router::ServerState {
             db,
-            config: sched_conf,
+            config: sched_conf.clone(),
         };
 
         // Start the web server
@@ -147,8 +172,14 @@ fn main() {
                 routing::get(router::task::get_task_with_id),
             )
             .with_state(state);
+        
+        let listener = tokio::net::TcpListener::bind(format!(
+            "{}:{}",
+            sched_conf.listen_ip, sched_conf.listen_port
+        ))
+        .await
+        .unwrap();
 
-        let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
         info!(
             "Axum server listening on: {}",
             listener.local_addr().unwrap()

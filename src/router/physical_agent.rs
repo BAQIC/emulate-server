@@ -93,9 +93,14 @@ where
 }
 
 pub fn get_agent_info(path: &str) -> Agents {
-    let agent_info = std::fs::read_to_string(path).unwrap();
-    let agent_info: Agents = serde_json::from_str(&agent_info).unwrap();
-    agent_info
+    if !std::path::Path::new(path).exists() {
+        error!("Agents info file not found");
+        Agents { agents: vec![] }
+    } else {
+        let agent_info = std::fs::read_to_string(path).unwrap();
+        let agent_info: Agents = serde_json::from_str(&agent_info).unwrap();
+        agent_info
+    }
 }
 
 /// Initialize the qthread with num of physical agents
@@ -182,11 +187,7 @@ pub async fn add_physical_agent(
 
 pub async fn add_physical_agent_from_file(db: &DbConn, agents: Agents) {
     for agent in agents.agents {
-        info!(
-            "Init physical agent (qubits: {}, circuit_depth: {}) with {}:{:?}",
-            agent.qubit_count, agent.circuit_depth, agent.ip, agent.port
-        );
-        service::physical_agent::PhysicalAgent::add_physical_agent(
+        match service::physical_agent::PhysicalAgent::add_physical_agent(
             db,
             entity::physical_agent::Model {
                 id: uuid::Uuid::new_v4(),
@@ -199,7 +200,22 @@ pub async fn add_physical_agent_from_file(db: &DbConn, agents: Agents) {
             },
         )
         .await
-        .unwrap();
+        {
+            Ok(a) => {
+                info!(
+                    "Add {}:{} physical agent with qubit_count: {}, circuit_depth: {}",
+                    a.ip, a.port, a.qubit_count, a.circuit_depth
+                );
+            }
+            Err(err) => match err {
+                sea_orm::DbErr::Custom(e) => {
+                    error!("Add physical agent failed: {}", e);
+                }
+                _ => {
+                    error!("Add physical agent failed: {}", err);
+                }
+            },
+        }
     }
 }
 
@@ -292,7 +308,6 @@ async fn _update_physical_agent(
     );
 
     let db = &state.db;
-
 
     match service::physical_agent::PhysicalAgent::update_physical_agent(
         db,

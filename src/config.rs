@@ -3,6 +3,8 @@ use serde::Deserialize;
 pub struct QSchedulerConfig {
     pub sched_min_gran: u32,
     pub sched_min_depth: u32,
+    pub listen_ip: String,
+    pub listen_port: u32,
 }
 
 impl Default for QSchedulerConfig {
@@ -10,6 +12,8 @@ impl Default for QSchedulerConfig {
         Self {
             sched_min_gran: 200,
             sched_min_depth: 10,
+            listen_ip: "0.0.0.0".to_string(),
+            listen_port: 3000,
         }
     }
 }
