@@ -46,8 +46,8 @@
 
 use axum::{routing, Router};
 use log::info;
-pub use sea_orm::{ConnectOptions, Database, DbConn};
 use migration::{Migrator, MigratorTrait};
+pub use sea_orm::{ConnectOptions, Database, DbConn};
 pub mod config;
 pub mod entity;
 pub mod router;
@@ -155,7 +155,7 @@ fn main() {
         tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
         let db: DbConn = Database::connect(connection_options).await.unwrap();
 
-        // drop all tables and re-create them
+        // apply all pending migrations
         Migrator::up(&db, None).await.unwrap();
 
         // todo: read config from yaml file
@@ -184,6 +184,7 @@ fn main() {
                 "/get_task/:id",
                 routing::get(router::task::get_task_with_id),
             )
+            .route("/fresh_db", routing::post(router::fresh_db))
             .with_state(state);
 
         let listener = tokio::net::TcpListener::bind(format!(

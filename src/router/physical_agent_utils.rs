@@ -14,7 +14,7 @@
 //! agents for consume task thread at the beginning.
 //! - `empty_string_as_none`: The function that converts an empty string to
 //! `None` when deserializing the optional field.
-    
+
 use serde::{de, Deserialize, Deserializer, Serialize};
 use std::{fmt, str::FromStr};
 use uuid::Uuid;
