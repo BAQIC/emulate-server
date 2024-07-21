@@ -1,0 +1,39 @@
+services:
+  postgres:
+    image: postgres:latest
+    environment:
+      POSTGRES_USER: quantum-emulator
+      POSTGRES_PASSWORD: quantum-emulator
+      POSTGRES_DB: quantum-emulator
+    networks:
+      - emulator-server
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    hostname: postgres
+  qscheduler:
+    image: emulate-server:20240721
+    environment:
+      DATABASE_URL: postgres://quantum-emulator:quantum-emulator@postgres:5432/quantum-emulator
+      AGENT_FILE: "/agents.json"
+    networks:
+      - emulator-server
+    ports:
+      - 3000:3000
+    volumes:
+      - /home/lucky/Code/rust-emulate-server/config/agents-compose.json:/agents.json
+    hostname: qscheduler
+  qasmsim-agent-1:
+    image: ghcr.io/baqic/qasmsim-agent:main
+    networks:
+      - emulator-server
+    hostname: qasmsim-agent-1
+  qasmsim-agent-2:
+    image: ghcr.io/baqic/qasmsim-agent:main
+    networks:
+      - emulator-server
+    hostname: qasmsim-agent-2
+
+networks:
+  emulator-server:
+volumes:
+  pgdata:

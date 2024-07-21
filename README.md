@@ -52,8 +52,20 @@ cargo doc --bins --document-private-items --no-deps
 
 ## Use the agent file
 
-You can use following command to run the server with the agent file:
+You can use following command to run the server with the agent file and db url:
 
 ```bash
-docker run -d --network=host --name=emulate-server --restart=always --env AGENT_FILE=/agent.json -v /path/to/agent/file:/agent.json emulate-server:latest
+docker run -d --network=host --name=emulate-server --restart=always --env AGENT_FILE=/agent.json --env DATABASE_URL=postgres://quantum-emulator:quantum-emulator@postgres:5432/quantum-emulator  -v /path/to/agent/file:/agent.json emulate-server:latest
+```
+
+## Use docker compose
+
+You can use following command to run the emulator server:
+```bash
+docker compose -p emulator-server up -d
+```
+
+Use following command to stop the emulator server:
+```bash
+docker compose -p emulator-server down
 ```

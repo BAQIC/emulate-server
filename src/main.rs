@@ -47,6 +47,7 @@
 use axum::{routing, Router};
 use log::info;
 pub use sea_orm::{ConnectOptions, Database, DbConn};
+use migration::{Migrator, MigratorTrait};
 pub mod config;
 pub mod entity;
 pub mod router;
@@ -155,7 +156,7 @@ fn main() {
         let db: DbConn = Database::connect(connection_options).await.unwrap();
 
         // drop all tables and re-create them
-        // Migrator::fresh(&db).await.unwrap();
+        Migrator::up(&db, None).await.unwrap();
 
         // todo: read config from yaml file
         let state = router::ServerState {

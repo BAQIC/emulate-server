@@ -167,7 +167,7 @@ pub async fn consume_task(
     agent: entity::physical_agent::Model,
 ) {
     // get exec shots according to the min depth and gran
-    let mut exec_shots = (task.depth as f32 / sched_min_depth * sched_min_gran) as i32;
+    let mut exec_shots = (sched_min_depth / task.depth as f32 * sched_min_gran) as i32;
     if task.exec_shots + exec_shots > task.shots {
         exec_shots = task.shots - task.exec_shots;
     }
