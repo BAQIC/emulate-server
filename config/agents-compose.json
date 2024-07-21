@@ -1,13 +1,15 @@
 {
   "agents": [
     {
-      "ip": "qasmsim-agent-1",
+      "ip": "",
+      "hostname": "qasmsim-agent-1",
       "port": 3003,
       "qubit_count": 20,
       "circuit_depth": 20
     },
     {
-      "ip": "qasmsim-agent-2",
+      "ip": "",
+      "hostname": "qasmsim-agent-2",
       "port": 3003,
       "qubit_count": 20,
       "circuit_depth": 20

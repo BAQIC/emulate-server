@@ -59,12 +59,15 @@ impl FromStr for AgentStatus {
 /// The struct that represents the information of the agent. The user can add a
 /// new agent with the given information.
 /// - `ip`: The IP address of the agent.
+/// - `hostname`: The host name of the agent, optional.
 /// - `port`: The port number of the agent.
 /// - `qubit_count`: The number of qubits the agent has.
 /// - `circuit_depth`: The circuit depth of the agent can run.
 #[derive(Deserialize, Debug)]
 pub struct AgentInfo {
     pub ip: String,
+    #[serde(default, deserialize_with = "empty_string_as_none")]
+    pub hostname: Option<String>,
     pub port: u32,
     pub qubit_count: u32,
     pub circuit_depth: u32,

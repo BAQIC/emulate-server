@@ -31,6 +31,8 @@
 //!   body content should be
 //!   [AgentInfo](router::physical_agent_utils::AgentInfoUpdate). Except for the
 //!   ID, all other fields are optional.
+//! - `POST /fresh_db`: Drop all tables from the database, then reapply all
+//!  migrations. This is used for admin users to reset the database.
 //!
 //! ## Task Consumer Thread
 //! The task consumer thread is responsible for consuming waiting tasks and

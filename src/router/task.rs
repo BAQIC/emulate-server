@@ -205,72 +205,62 @@ pub async fn consume_task(
     .unwrap();
 
     if result.is_ok() {
-        // if the task is run for the first time
-        if task.result.is_none() {
+        let task_result = if task.result.is_none() {
+            // if the task is run for the first time
+            result.unwrap().json::<Value>().await.unwrap()
+        } else {
+            let mut task_result: Value =
+                serde_json::from_str::<Value>(&task.result.unwrap()).unwrap();
+            merge_and_add(
+                &mut task_result,
+                &result.unwrap().json::<Value>().await.unwrap(),
+            );
+            task_result
+        };
+
+        // if the task is finisched
+        if task.exec_shots + exec_shots >= task.shots {
+            service::task_active::TaskActive::remove_active_task(db, task.id)
+                .await
+                .unwrap();
+            service::task::Task::add_task(
+                db,
+                entity::task::Model {
+                    id: task.id,
+                    source: task.source,
+                    result: serde_json::to_string_pretty(&task_result).unwrap(),
+                    qubits: task.qubits,
+                    depth: task.depth,
+                    shots: task.shots,
+                    status: sea_orm_active_enums::TaskStatus::Succeeded,
+                    created_time: task.created_time,
+                    updated_time: task.updated_time,
+                },
+            )
+            .await
+            .unwrap();
+        } else {
+            // if the task is not finisched
             service::task_active::TaskActive::update_task_result(
                 db,
                 task.id,
                 task.exec_shots + exec_shots,
                 task.v_exec_shots + exec_shots,
-                Some(
-                    serde_json::to_string_pretty(&result.unwrap().json::<Value>().await.unwrap())
-                        .unwrap(),
-                ),
+                Some(serde_json::to_string_pretty(&task_result).unwrap()),
                 sea_orm_active_enums::TaskActiveStatus::Waiting,
             )
             .await
             .unwrap();
-        } else {
-            let mut task_result = serde_json::from_str::<Value>(&task.result.unwrap()).unwrap();
-            merge_and_add(
-                &mut task_result,
-                &result.unwrap().json::<Value>().await.unwrap(),
-            );
-
-            // if the task is finisched
-            if task.exec_shots + exec_shots >= task.shots {
-                service::task_active::TaskActive::remove_active_task(db, task.id)
-                    .await
-                    .unwrap();
-                service::task::Task::add_task(
-                    db,
-                    entity::task::Model {
-                        id: task.id,
-                        source: task.source,
-                        result: serde_json::to_string_pretty(&task_result).unwrap(),
-                        qubits: task.qubits,
-                        depth: task.depth,
-                        shots: task.shots,
-                        status: sea_orm_active_enums::TaskStatus::Succeeded,
-                        created_time: task.created_time,
-                        updated_time: task.updated_time,
-                    },
-                )
-                .await
-                .unwrap();
-            } else {
-                // if the task is not finisched
-                service::task_active::TaskActive::update_task_result(
-                    db,
-                    task.id,
-                    task.exec_shots + exec_shots,
-                    task.v_exec_shots + exec_shots,
-                    Some(serde_json::to_string_pretty(&task_result).unwrap()),
-                    sea_orm_active_enums::TaskActiveStatus::Waiting,
-                )
-                .await
-                .unwrap();
-            }
-
-            // update the assignment status
-            service::task_assignment::TaskAssignment::update_assignment_status(
-                db,
-                assign.id,
-                sea_orm_active_enums::AssignmentStatus::Succeeded,
-            )
-            .await
-            .unwrap();
         }
+
+        // update the assignment status
+        service::task_assignment::TaskAssignment::update_assignment_status(
+            db,
+            assign.id,
+            sea_orm_active_enums::AssignmentStatus::Succeeded,
+        )
+        .await
+        .unwrap();
     } else {
         // if the task is failed
         service::task_assignment::TaskAssignment::update_assignment_status(

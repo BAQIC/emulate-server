@@ -7,6 +7,7 @@ use crate::service;
 use axum::extract::{Query, Request};
 use axum::{extract::State, http::StatusCode, Json};
 use axum::{Form, RequestExt};
+use dns_lookup::lookup_host;
 use http::header;
 use log::{error, info};
 use sea_orm::DbConn;
@@ -32,16 +33,44 @@ pub fn get_agent_info(path: &str) -> Agents {
 /// Internal function to add a physical agent to the database
 async fn _add_physical_agent(
     state: ServerState,
-    Form(query_message): Form<AgentInfo>,
+    Form(mut query_message): Form<AgentInfo>,
 ) -> (StatusCode, Json<Value>) {
     info!(
-        "Init physical agent (qubits: {}, circuit_depth: {}) with {}:{:?}",
+        "Init physical agent (qubits: {}, circuit_depth: {}) with {}:{:?} (hostname: {:?})",
         query_message.qubit_count,
         query_message.circuit_depth,
         query_message.ip,
-        query_message.port
+        query_message.port,
+        query_message.hostname
     );
     let db = &state.db;
+
+    // if the ip is empty, use the hostname to get the ip address
+    if query_message.ip == "" {
+        info!("Using hostname to get the ip address");
+        // not check hostname is none
+        match lookup_host(&query_message.hostname.unwrap()) {
+            Ok(ips) => {
+                if ips.len() == 0 {
+                    error!("Get ip address failed: No ip address found");
+                    return (
+                        StatusCode::BAD_REQUEST,
+                        Json(json!({"Error": "No ip address found"})),
+                    );
+                }
+                info!("Get ip address successfully: {:?}", ips);
+                let ip = ips[0].to_string();
+                query_message.ip = ip;
+            }
+            Err(err) => {
+                error!("Get ip address failed: {}", err);
+                return (
+                    StatusCode::BAD_REQUEST,
+                    Json(json!({"Error": format!("{}", err)})),
+                );
+            }
+        }
+    }
 
     match service::physical_agent::PhysicalAgent::add_physical_agent(
         db,
@@ -79,6 +108,8 @@ async fn _add_physical_agent(
 /// request body. The request body can be either JSON or form-urlencoded. If the
 /// agent ip and port is the same as the existing agent, the post request will
 /// return an error.
+///
+/// If the ip is empty, use the hostname to get the ip address.
 pub async fn add_physical_agent(
     State(state): State<ServerState>,
     request: Request,
@@ -115,8 +146,30 @@ pub async fn add_physical_agent(
 /// Add physical agents to the database from the given file. The file should
 /// contain the agent information in JSON format. This function is used by the
 /// consume task thread.
+///
+/// If the ip is empty, use the hostname to get the ip address.
 pub async fn add_physical_agent_from_file(db: &DbConn, agents: Agents) {
-    for agent in agents.agents {
+    for mut agent in agents.agents {
+        // if the ip is empty, use the hostname to get the ip address
+        if agent.ip == "" {
+            info!("Using hostname to get the ip address");
+            // not check hostname is none
+            match lookup_host(&agent.hostname.unwrap()) {
+                Ok(ips) => {
+                    if ips.len() == 0 {
+                        error!("Get ip address failed: No ip address found");
+                        continue;
+                    }
+                    info!("Get ip address successfully: {:?}", ips);
+                    let ip = ips[0].to_string();
+                    agent.ip = ip;
+                }
+                Err(err) => {
+                    error!("Get ip address failed: {}", err);
+                    continue;
+                }
+            }
+        }
         match service::physical_agent::PhysicalAgent::add_physical_agent(
             db,
             entity::physical_agent::Model {
