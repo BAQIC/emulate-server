@@ -332,8 +332,7 @@ async fn _update_physical_agent(
 /// Update the physical agent with the given id. The agent information is passed
 /// in the request body. The request body can be either JSON or form-urlencoded.
 /// Except for the ID, all other fields are optional. Please refer to the
-/// [AgentInfoUpdate](super::physical_agent_utils::AgentInfoUpdate) struct for
-/// more information.
+/// [AgentInfoUpdate] struct for more information.
 pub async fn update_physical_agent(
     State(state): State<ServerState>,
     request: Request,
