@@ -365,3 +365,29 @@ pub async fn update_physical_agent(
         }
     }
 }
+
+/// ## Remove Physical Agent
+/// Remove the physical agent with the given id.
+pub async fn remove_physical_agent(
+    State(state): State<ServerState>,
+    Query(query_message): Query<AgentInfoUpdate>,
+) -> (StatusCode, Json<Value>) {
+    info!("Remove physical agent: {:?}", query_message.id);
+
+    let db = &state.db;
+
+    match service::physical_agent::PhysicalAgent::remove_physical_agent(db, query_message.id).await
+    {
+        Ok(agent) => {
+            info!("Remove physical agent {:?} successfully", agent);
+            (StatusCode::OK, Json(json!({"agent": agent})))
+        }
+        Err(err) => {
+            error!("Remove physical agent failed: {}", err);
+            (
+                StatusCode::BAD_REQUEST,
+                Json(json!({"Error": format!("{}", err)})),
+            )
+        }
+    }
+}

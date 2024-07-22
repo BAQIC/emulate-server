@@ -31,6 +31,8 @@
 //!   body content should be
 //!   [AgentInfo](router::physical_agent_utils::AgentInfoUpdate). Except for the
 //!   ID, all other fields are optional.
+//! - `GET /remove_agent`: Remove the agent from the scheduler. The agent id is
+//!  passed as a query parameter. For example remove_agent?id=1.
 //! - `POST /fresh_db`: Drop all tables from the database, then reapply all
 //!  migrations. This is used for admin users to reset the database.
 //!
@@ -179,6 +181,10 @@ fn main() {
             .route(
                 "/update_agent",
                 routing::post(router::physical_agent::update_physical_agent),
+            )
+            .route(
+                "/remove_agent",
+                routing::get(router::physical_agent::remove_physical_agent),
             )
             .route("/submit", routing::post(router::task::submit))
             .route("/get_task", routing::get(router::task::get_task))

@@ -1,6 +1,6 @@
 use crate::entity::*;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, Condition, DbConn, DeleteResult, EntityTrait, QueryFilter,
+    ActiveModelTrait, ColumnTrait, Condition, DbConn, EntityTrait, QueryFilter,
     QueryOrder, Set,
 };
 
@@ -219,9 +219,14 @@ impl PhysicalAgent {
     pub async fn remove_physical_agent(
         db: &DbConn,
         agent_id: uuid::Uuid,
-    ) -> Result<DeleteResult, sea_orm::prelude::DbErr> {
+    ) -> Result<physical_agent::Model, sea_orm::prelude::DbErr> {
+        let agent = physical_agent::Entity::find_by_id(agent_id)
+            .one(db)
+            .await?
+            .unwrap();
         physical_agent::Entity::delete_by_id(agent_id)
             .exec(db)
-            .await
+            .await?;
+        Ok(agent)
     }
 }

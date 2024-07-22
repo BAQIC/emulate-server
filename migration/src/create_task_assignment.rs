@@ -1,4 +1,3 @@
-use super::create_physical_agent::PhysicalAgent;
 use sea_orm_migration::{
     prelude::*,
     sea_orm::{EnumIter, Iterable},
@@ -56,12 +55,6 @@ impl MigrationTrait for Migration {
                         ColumnDef::new(TaskAssignment::Status)
                             .enumeration(AssignmentStatus::Table, AssignmentStatus::iter().skip(1))
                             .not_null(),
-                    )
-                    .foreign_key(
-                        ForeignKey::create()
-                            .name("fk_task_assignment_agent_id")
-                            .from_col(TaskAssignment::AgentId)
-                            .to(PhysicalAgent::Table, PhysicalAgent::Id),
                     )
                     .to_owned(),
             )
