@@ -70,25 +70,21 @@ fn main() {
         info!("Consume waiting task thread started");
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async {
-            // connect to the database
-            if std::path::Path::new(".env").exists() {
-                info!("Load db.env file from config directory");
-                dotenv::from_filename(".env").ok();
-            }
-            let base_url =
-                std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".to_owned());
+            // read scheduler config from json file
+            let sched_conf_path = std::env::var("QSCHED_CONFIG").unwrap_or_else(|_| "config/qsched.json".to_owned());
+            info!("[Consume Waiting Task] Read scheduler config from file: {}", sched_conf_path);
+            let sched_conf = config::get_qsched_config(&sched_conf_path);
 
-            let agent_file = std::env::var("AGENT_FILE").unwrap_or_else(|_| "config/agents.json".to_owned());
+            let db_url = sched_conf.db_url;
+            let agent_file_path = sched_conf.agent_file;
+            info!("[Consume Waiting Task] Connect database: {}", db_url);
+            info!("[Consume Waiting Task] Read agents from file: {}", agent_file_path);
 
-            info!("Consume waiting task thread connect database: {}", base_url);
-            info!("Consume waiting task thread read agents from file: {}", agent_file);
-
-            // read sheduler config and agents infomation from json file
-            let sched_conf = config::get_qsched_config("config/qsched.json");
-            let agents = get_agent_info(&agent_file);
+            // read sheduler config and agents infomation from json file            
+            let agents = get_agent_info(&agent_file_path);
 
             // disable sqlx logging
-            let mut connection_options = ConnectOptions::new(base_url);
+            let mut connection_options = ConnectOptions::new(db_url);
             connection_options.sqlx_logging(false);
 
             tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
@@ -139,21 +135,21 @@ fn main() {
     let axum_rt = tokio::runtime::Runtime::new().unwrap();
     axum_rt.block_on(async move {
         info!("Axum server started");
-        // connect to the database
-        if std::path::Path::new(".env").exists() {
-            info!("Load .env file from config directory");
-            dotenv::from_filename(".env").ok();
-        }
-        let base_url =
-            std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".to_owned());
 
-        info!("Axum server connect database: {}", base_url);
+        // read scheduler config from json file
+        let sched_conf_path =
+            std::env::var("QSCHED_CONFIG").unwrap_or_else(|_| "config/qsched.json".to_owned());
+        info!(
+            "[Consume Waiting Task] Read scheduler config from file: {}",
+            sched_conf_path
+        );
+        let sched_conf = config::get_qsched_config(&sched_conf_path);
 
-        // read sheduler config from json file
-        let sched_conf = config::get_qsched_config("config/qsched.json");
+        let db_url = sched_conf.db_url.clone();
+        info!("Axum server connect database: {}", db_url);
 
         // disable sqlx logging
-        let mut connection_options = ConnectOptions::new(base_url);
+        let mut connection_options = ConnectOptions::new(db_url);
         connection_options.sqlx_logging(false);
 
         tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
