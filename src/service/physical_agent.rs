@@ -1,7 +1,8 @@
 use crate::entity::*;
+use migration::Expr;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, Condition, DbConn, EntityTrait, QueryFilter,
-    QueryOrder, Set,
+    QueryOrder, Set, UpdateResult,
 };
 
 pub struct PhysicalAgent;
@@ -167,15 +168,15 @@ impl PhysicalAgent {
         db: &DbConn,
         agent_id: uuid::Uuid,
         qubits_idle: i32,
-    ) -> Result<physical_agent::Model, sea_orm::prelude::DbErr> {
-        let mut agent: physical_agent::ActiveModel = physical_agent::Entity::find_by_id(agent_id)
-            .one(db)
-            .await?
-            .unwrap()
-            .into();
-
-        agent.qubit_idle = Set(qubits_idle);
-        agent.update(db).await
+    ) -> Result<UpdateResult, sea_orm::prelude::DbErr> {
+        physical_agent::Entity::update_many()
+            .filter(physical_agent::Column::Id.eq(agent_id))
+            .col_expr(
+                physical_agent::Column::QubitIdle,
+                Expr::col(physical_agent::Column::QubitIdle).add(qubits_idle),
+            )
+            .exec(db)
+            .await
     }
 
     /// Update the physical agent with the given information.

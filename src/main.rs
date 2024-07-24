@@ -109,7 +109,7 @@ fn main() {
                             service::physical_agent::PhysicalAgent::update_physical_agent_qubits_idle(
                                 &db,
                                 agent.id,
-                                agent.qubit_idle - waiting_task.qubits as i32,
+                                 - waiting_task.qubits as i32,
                             ).await.unwrap();
 
                             let db = db.clone();

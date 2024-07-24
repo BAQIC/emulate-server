@@ -199,7 +199,7 @@ pub async fn consume_task(
     service::physical_agent::PhysicalAgent::update_physical_agent_qubits_idle(
         db,
         agent.id,
-        agent.qubit_idle + task.qubits as i32,
+        task.qubits as i32,
     )
     .await
     .unwrap();
