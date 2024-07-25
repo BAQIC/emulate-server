@@ -1,4 +1,4 @@
-FROM rust:alpine
+FROM rust:alpine AS builder
 
 RUN mkdir -p /workspace
 WORKDIR /workspace
@@ -11,5 +11,8 @@ COPY . .
 RUN cargo build --release && mv target/release/emulate-server /bin/emulate-server \
     && cargo clean && rm -rf /usr/local/cargo \
     && rm -rf /usr/local/rustup
+
+FROM alpine:latest
+COPY --from=builder /bin/emulate-server /bin/emulate-server
 
 ENTRYPOINT [ "/bin/emulate-server" ]
