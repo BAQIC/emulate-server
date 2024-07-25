@@ -11,15 +11,15 @@ services:
       - pgdata:/var/lib/postgresql/data
     hostname: postgres
   qscheduler:
-    image: emulate-server:20240722
+    image: emulate-server:20240724
     environment:
-      DATABASE_URL: postgres://quantum-emulator:quantum-emulator@postgres:5432/quantum-emulator
-      AGENT_FILE: "/agents.json"
+      QSCHED_CONFIG: "/qsched.json"
     networks:
       - emulator-server
     ports:
       - 3000:3000
     volumes:
+      - /home/lucky/Code/rust-emulate-server/config/qsched-compose.json:/qsched.json
       - /home/lucky/Code/rust-emulate-server/config/agents-compose.json:/agents.json
     hostname: qscheduler
   qasmsim-agent-1:

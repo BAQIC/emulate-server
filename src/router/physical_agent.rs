@@ -204,14 +204,42 @@ pub async fn add_physical_agent_from_file(db: &DbConn, agents: Agents) {
 
 /// ## Get Physical Agent By Address
 /// Get the physical agent by the given ip and port. If the port is not
-/// provided, return all the agents with the given ip.
+/// provided, return all the agents with the given ip. If the ip is empty, use
+/// the hostname to get the ip address.
 pub async fn get_physical_agent_by_address(
     State(state): State<ServerState>,
-    Query(query_message): Query<AgentAddress>,
+    Query(mut query_message): Query<AgentAddress>,
 ) -> (StatusCode, Json<Value>) {
     info!("Get physical agent by address: {:?}", query_message);
 
     let db = &state.db;
+
+    if query_message.ip == "" {
+        info!("Using hostname to get the ip address");
+        // not check hostname is none
+        match lookup_host(&query_message.hostname.unwrap()) {
+            Ok(ips) => {
+                if ips.len() == 0 {
+                    error!("Get ip address failed: No ip address found");
+                    return (
+                        StatusCode::BAD_REQUEST,
+                        Json(json!({"Error": "No ip address found"})),
+                    );
+                }
+                info!("Get ip address successfully: {:?}", ips);
+                let ip = ips[0].to_string();
+                query_message.ip = ip;
+            }
+            Err(err) => {
+                error!("Get ip address failed: {}", err);
+                return (
+                    StatusCode::BAD_REQUEST,
+                    Json(json!({"Error": format!("{}", err)})),
+                );
+            }
+        }
+    }
+
     if query_message.port.is_none() {
         match service::physical_agent::PhysicalAgent::get_physical_agent_by_ip(
             db,

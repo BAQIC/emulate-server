@@ -1,8 +1,8 @@
 use crate::entity::*;
 use migration::Expr;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, Condition, DbConn, EntityTrait, QueryFilter,
-    QueryOrder, Set, UpdateResult,
+    ActiveModelTrait, ColumnTrait, Condition, DbConn, EntityTrait, QueryFilter, QueryOrder, Set,
+    UpdateResult,
 };
 
 pub struct PhysicalAgent;

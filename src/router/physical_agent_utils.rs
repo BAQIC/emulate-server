@@ -107,6 +107,8 @@ pub struct AgentInfoUpdate {
 pub struct AgentAddress {
     pub ip: String,
     #[serde(default, deserialize_with = "empty_string_as_none")]
+    pub hostname: Option<String>,
+    #[serde(default, deserialize_with = "empty_string_as_none")]
     pub port: Option<u32>,
 }
 
