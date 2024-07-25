@@ -56,14 +56,15 @@ pub mod config;
 pub mod entity;
 pub mod router;
 pub mod service;
-pub mod task;
 use router::{
     physical_agent::{add_physical_agent_from_file, get_agent_info},
     task::consume_task,
 };
 
 fn main() {
-    log4rs::init_file("config/log4rs.yaml", Default::default()).unwrap();
+    let log_conf_path =
+        std::env::var("LOG_CONFIG").unwrap_or_else(|_| "/log4rs.yaml".to_owned());
+    log4rs::init_file(&log_conf_path, Default::default()).unwrap();
 
     // Start a thread to consume waiting tasks, and submit them to idle agents
     std::thread::spawn(move || {
@@ -71,7 +72,7 @@ fn main() {
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async {
             // read scheduler config from json file
-            let sched_conf_path = std::env::var("QSCHED_CONFIG").unwrap_or_else(|_| "config/qsched.json".to_owned());
+            let sched_conf_path = std::env::var("QSCHED_CONFIG").unwrap_or_else(|_| "/qsched.json".to_owned());
             info!("[Consume Waiting Task] Read scheduler config from file: {}", sched_conf_path);
             let sched_conf = config::get_qsched_config(&sched_conf_path);
 
@@ -138,7 +139,7 @@ fn main() {
 
         // read scheduler config from json file
         let sched_conf_path =
-            std::env::var("QSCHED_CONFIG").unwrap_or_else(|_| "config/qsched.json".to_owned());
+            std::env::var("QSCHED_CONFIG").unwrap_or_else(|_| "/qsched.json".to_owned());
         info!(
             "[Consume Waiting Task] Read scheduler config from file: {}",
             sched_conf_path

@@ -13,6 +13,10 @@ RUN cargo build --release && mv target/release/emulate-server /bin/emulate-serve
     && rm -rf /usr/local/rustup
 
 FROM alpine:latest
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.bfsu.edu.cn/g' /etc/apk/repositories \
+    && apk add musl --no-cache
+COPY --from=builder /workspace/emulate-server/config/qsched.json /qsched.json
+COPY --from=builder /workspace/emulate-server/config/log4rs.yaml /log4rs.yaml
 COPY --from=builder /bin/emulate-server /bin/emulate-server
 
 ENTRYPOINT [ "/bin/emulate-server" ]

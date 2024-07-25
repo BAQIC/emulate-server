@@ -26,14 +26,16 @@ docker run -d --name=quantum-emulator-pg -e POSTGRES_PASSWORD=quantum-emulator -
 To run the emulate-server, please use the following command:
 
 ```bash
-docker run -d --network=host --name=emulate-server --env QSCHED_CONFIG=/qsched.json -v /path/to/qsched:/qsched.json -v /path/to/agent/file:/agent.json --restart=always emulate-server:latest
+docker run -d --network=host --name=emulate-server --env QSCHED_CONFIG=/qsched.json --env LOG_CONFIG=/log4rs.yaml -v /path/to/qsched:/qsched.json -v /path/to/agent/file:/agent.json -v /path/to/log4rs:/log4rs.yaml --restart=always emulate-server:latest
 ```
 
-You can use `QSCHED_CONFIG` to specify the path of the configuration file for the quantum scheduler. The default value is `config/qsched.json`. The agent file path is specified by `agent_file` in thee configuration file of the quantum scheduler. Please make sure the configuration file and the agent file are accessible by the server.
+You can use `QSCHED_CONFIG` to specify the path of the configuration file for the quantum scheduler. The default value is `/qsched.json`. The agent file path is specified by `agent_file` in thee configuration file of the quantum scheduler. Please make sure the configuration file and the agent file are accessible by the server.
 
 **NOTE**: The agent file is mainly for develop and testing. If you don't want to use the agent file, please set the value of `agent_file` to `""`.
 
 The database url is specified by `db_url` in the configuration file of the quantum scheduler. Please make sure the database url is accessible by the server.
+
+You can use `LOG_CONFIG` to specify the path of the configuration file for log system. The default value is `/log4rs.yaml`. Please make sure the log configuration file are accessible by the server. The default log path is `/log/requests.log`.
 
 Then, you can use `emulate-client` to submit jobs to the server.
 

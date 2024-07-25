@@ -1,0 +1,36 @@
+FROM rust:alpine AS builder
+
+RUN mkdir -p /workspace
+WORKDIR /workspace
+
+# Change the source of crates.io to bytedance
+RUN touch $CARGO_HOME/config \
+    && echo '[source.crates-io]' > $CARGO_HOME/config \
+    && echo "replace-with = 'rsproxy-sparse'"  >> $CARGO_HOME/config \
+    && echo '[source.rsproxy]'   >> $CARGO_HOME/config \
+    && echo 'registry = "https://rsproxy.cn/crates.io-index"'  >> $CARGO_HOME/config \
+    && echo '[source.rsproxy-sparse]'   >> $CARGO_HOME/config \
+    && echo 'registry = "sparse+https://rsproxy.cn/index/"'  >> $CARGO_HOME/config \
+    && echo '[registries.rsproxy]'  >> $CARGO_HOME/config \
+    && echo 'index = "https://rsproxy.cn/crates.io-index"'  >> $CARGO_HOME/config \
+    && echo '[net]'   >> $CARGO_HOME/config \
+    && echo 'git-fetch-with-cli = true'   >> $CARGO_HOME/config \
+    && echo '' >> $CARGO_HOME/config
+
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.bfsu.edu.cn/g' /etc/apk/repositories \
+    && apk add git musl-dev make perl --no-cache
+
+WORKDIR /workspace/emulate-server
+COPY . .
+RUN cargo build --release && mv target/release/emulate-server /bin/emulate-server \
+    && cargo clean && rm -rf /usr/local/cargo \
+    && rm -rf /usr/local/rustup
+
+FROM alpine:latest
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.bfsu.edu.cn/g' /etc/apk/repositories \
+    && apk add musl --no-cache
+COPY --from=builder /workspace/emulate-server/config/qsched.json /qsched.json
+COPY --from=builder /workspace/emulate-server/config/log4rs.yaml /log4rs.yaml
+COPY --from=builder /bin/emulate-server /bin/emulate-serverdo
+
+ENTRYPOINT [ "/bin/emulate-server" ]
