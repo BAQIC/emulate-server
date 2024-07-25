@@ -16,8 +16,8 @@ impl Default for QSchedulerConfig {
             sched_min_depth: 10,
             listen_ip: "0.0.0.0".to_string(),
             listen_port: 3000,
-            db_url: "postgres://postgres:postgres@127.0.0.1:5432/quantum-emulator".to_string(),
-            agent_file: "config/agents.json".to_string(),
+            db_url: "".to_string(),
+            agent_file: "".to_string(),
         }
     }
 }
