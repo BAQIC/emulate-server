@@ -11,15 +11,18 @@ pub struct Migration;
 pub enum PhysicalAgent {
     Table,
     Id,
-    PhysicalAgentStatus,
+    Status,
     IP,
-    Port
+    Port,
+    QubitCount,
+    QubitIdle,
+    CircuitDepth,
 }
 
 #[derive(DeriveIden, EnumIter)]
 enum PhysicalAgentStatus {
     Table,
-    Idle,
+    Down,
     Running,
 }
 
@@ -48,7 +51,7 @@ impl MigrationTrait for Migration {
                             .unique_key(),
                     )
                     .col(
-                        ColumnDef::new(PhysicalAgent::PhysicalAgentStatus)
+                        ColumnDef::new(PhysicalAgent::Status)
                             .enumeration(
                                 PhysicalAgentStatus::Table,
                                 PhysicalAgentStatus::iter().skip(1),
@@ -57,6 +60,21 @@ impl MigrationTrait for Migration {
                     )
                     .col(ColumnDef::new(PhysicalAgent::IP).string().not_null())
                     .col(ColumnDef::new(PhysicalAgent::Port).integer().not_null())
+                    .col(
+                        ColumnDef::new(PhysicalAgent::QubitCount)
+                            .unsigned()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(PhysicalAgent::QubitIdle)
+                            .unsigned()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(PhysicalAgent::CircuitDepth)
+                            .unsigned()
+                            .not_null(),
+                    )
                     .to_owned(),
             )
             .await

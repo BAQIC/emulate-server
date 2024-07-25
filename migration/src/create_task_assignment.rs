@@ -7,21 +7,22 @@ use sea_orm_migration::{
 #[derive(DeriveMigrationName)]
 pub struct Migration;
 
-#[derive(DeriveIden, EnumIter)]
-pub enum AgentType {
-    Table,
-    QppSV,
-    QppDM,
-    QASMSim,
-    CUDAQ,
-}
-
 #[derive(DeriveIden)]
-pub enum Options {
+pub enum TaskAssignment {
     Table,
     Id,
-    AgentType,
+    TaskId,
+    AgentId,
     Shots,
+    Status,
+}
+
+#[derive(DeriveIden, EnumIter)]
+pub enum AssignmentStatus {
+    Table,
+    Running,
+    Succeeded,
+    Failed,
 }
 
 #[async_trait::async_trait]
@@ -30,29 +31,31 @@ impl MigrationTrait for Migration {
         manager
             .create_type(
                 Type::create()
-                    .as_enum(AgentType::Table)
-                    .values(AgentType::iter().skip(1))
+                    .as_enum(AssignmentStatus::Table)
+                    .values(AssignmentStatus::iter().skip(1))
                     .to_owned(),
             )
             .await?;
         manager
             .create_table(
                 Table::create()
-                    .table(Options::Table)
+                    .table(TaskAssignment::Table)
                     .if_not_exists()
                     .col(
-                        ColumnDef::new(Options::Id)
+                        ColumnDef::new(TaskAssignment::Id)
                             .uuid()
                             .not_null()
                             .primary_key()
                             .unique_key(),
                     )
+                    .col(ColumnDef::new(TaskAssignment::AgentId).uuid().not_null())
+                    .col(ColumnDef::new(TaskAssignment::TaskId).uuid().not_null())
+                    .col(ColumnDef::new(TaskAssignment::Shots).unsigned().null())
                     .col(
-                        ColumnDef::new(Options::AgentType)
-                            .enumeration(AgentType::Table, AgentType::iter().skip(1))
+                        ColumnDef::new(TaskAssignment::Status)
+                            .enumeration(AssignmentStatus::Table, AssignmentStatus::iter().skip(1))
                             .not_null(),
                     )
-                    .col(ColumnDef::new(Options::Shots).unsigned().null())
                     .to_owned(),
             )
             .await
@@ -60,7 +63,12 @@ impl MigrationTrait for Migration {
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         manager
-            .drop_table(Table::drop().table(Options::Table).if_exists().to_owned())
+            .drop_table(
+                Table::drop()
+                    .table(TaskAssignment::Table)
+                    .if_exists()
+                    .to_owned(),
+            )
             .await
     }
 }

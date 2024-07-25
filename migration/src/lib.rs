@@ -1,9 +1,9 @@
 pub use sea_orm_migration::prelude::*;
 
-mod m20220101_000001_create_options;
-mod m20220101_000002_create_agent;
-mod m20220101_000002_create_physical_agent;
-mod m20220101_000004_create_task;
+mod create_physical_agent;
+mod create_task;
+mod create_task_active;
+mod create_task_assignment;
 
 pub struct Migrator;
 
@@ -11,10 +11,10 @@ pub struct Migrator;
 impl MigratorTrait for Migrator {
     fn migrations() -> Vec<Box<dyn MigrationTrait>> {
         vec![
-            Box::new(m20220101_000001_create_options::Migration),
-            Box::new(m20220101_000002_create_physical_agent::Migration),
-            Box::new(m20220101_000002_create_agent::Migration),
-            Box::new(m20220101_000004_create_task::Migration),
+            Box::new(create_physical_agent::Migration),
+            Box::new(create_task::Migration),
+            Box::new(create_task_active::Migration),
+            Box::new(create_task_assignment::Migration),
         ]
     }
 }

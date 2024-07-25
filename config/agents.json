@@ -1,0 +1,16 @@
+{
+  "agents": [
+    {
+      "ip": "127.0.0.1",
+      "port": 3003,
+      "qubit_count": 20,
+      "circuit_depth": 20
+    },
+    {
+      "ip": "127.0.0.1",
+      "port": 3004,
+      "qubit_count": 20,
+      "circuit_depth": 20
+    }
+  ]
+}

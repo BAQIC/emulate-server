@@ -1,8 +1,3 @@
-use super::{
-    m20220101_000001_create_options::Options,
-    m20220101_000002_create_agent::Agent,
-    // m20220101_000003_create_resource::Resource,
-};
 use sea_orm_migration::{
     prelude::*,
     sea_orm::{EnumIter, Iterable},
@@ -18,20 +13,19 @@ pub enum Task {
     Id,
     Source,
     Result,
-    OptionId,
+    Qubits,
+    Shots,
+    Depth,
     Status,
     CreatedTime,
     UpdatedTime,
-    AgentId,
 }
 
 #[derive(DeriveIden, EnumIter)]
 pub enum TaskStatus {
     Table,
-    Running,
     Succeeded,
     Failed,
-    NotStarted,
 }
 
 #[async_trait::async_trait]
@@ -58,8 +52,10 @@ impl MigrationTrait for Migration {
                             .unique_key(),
                     )
                     .col(ColumnDef::new(Task::Source).string().not_null())
-                    .col(ColumnDef::new(Task::Result).string().null())
-                    .col(ColumnDef::new(Task::OptionId).uuid().not_null())
+                    .col(ColumnDef::new(Task::Result).string().not_null())
+                    .col(ColumnDef::new(Task::Qubits).unsigned().not_null())
+                    .col(ColumnDef::new(Task::Shots).unsigned().not_null())
+                    .col(ColumnDef::new(Task::Depth).unsigned().not_null())
                     .col(
                         ColumnDef::new(Task::Status)
                             .enumeration(TaskStatus::Table, TaskStatus::iter().skip(1))
@@ -67,23 +63,6 @@ impl MigrationTrait for Migration {
                     )
                     .col(ColumnDef::new(Task::CreatedTime).timestamp().not_null())
                     .col(ColumnDef::new(Task::UpdatedTime).timestamp().not_null())
-                    .col(ColumnDef::new(Task::AgentId).uuid().null())
-                    .foreign_key(
-                        ForeignKey::create()
-                            .name("fk_task_option_id")
-                            .from_col(Task::OptionId)
-                            .to(Options::Table, Options::Id)
-                            .on_delete(ForeignKeyAction::Cascade)
-                            .on_update(ForeignKeyAction::Cascade),
-                    )
-                    .foreign_key(
-                        ForeignKey::create()
-                            .name("fk_task_agent_id")
-                            .from_col(Task::AgentId)
-                            .to(Agent::Table, Agent::Id)
-                            .on_delete(ForeignKeyAction::Cascade)
-                            .on_update(ForeignKeyAction::Cascade),
-                    )
                     .to_owned(),
             )
             .await
