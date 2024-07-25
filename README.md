@@ -55,6 +55,12 @@ Use following command to stop the emulator server:
 docker compose -p emulator-server down
 ```
 
+Use following command to stop the emulator server and remove all named volumes:
+
+```bash
+docker compose -p emulator-server down -v
+```
+
 ## How to develop the server
 
 ### Apply migrations after changing the schema

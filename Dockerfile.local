@@ -31,6 +31,6 @@ RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.bfsu.edu.cn/g' /etc/apk/repositorie
     && apk add musl --no-cache
 COPY --from=builder /workspace/emulate-server/config/qsched.json /qsched.json
 COPY --from=builder /workspace/emulate-server/config/log4rs.yaml /log4rs.yaml
-COPY --from=builder /bin/emulate-server /bin/emulate-serverdo
+COPY --from=builder /bin/emulate-server /bin/emulate-server
 
 ENTRYPOINT [ "/bin/emulate-server" ]
