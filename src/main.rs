@@ -99,7 +99,7 @@ fn main() {
                     .await
                     .unwrap();
 
-                // todo: if the device is idle, run one task concurrently
+                // TODO: if the device is idle, run one task concurrently
                 for waiting_task in waiting_tasks {
                     match service::physical_agent::PhysicalAgent::get_least_available_physical_agent(
                         &db,

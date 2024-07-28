@@ -74,6 +74,8 @@ cd migration
 cargo run -- -u database_url fresh
 ```
 
+**NOTE:** This operation may be dangerous, please make sure you have a backup of the database.
+
 ### Generate a new entity from the database
 
 To generate a new entity from the database, please use the following command:

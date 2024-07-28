@@ -4,6 +4,7 @@ use sea_orm::{
     ActiveModelTrait, ColumnTrait, Condition, DbConn, EntityTrait, QueryFilter, QueryOrder, Set,
     UpdateResult,
 };
+use sea_orm_active_enums::PhysicalAgentStatus;
 
 pub struct PhysicalAgent;
 
@@ -112,6 +113,22 @@ impl PhysicalAgent {
         physical_agent::Entity::find_by_id(agent_id).one(db).await
     }
 
+    /// Check whether the physical agent is idle by the given ID. This function
+    /// is used to check whether the agent has finished the task before update
+    /// the physical agent information.
+    pub async fn check_physical_agent_idle(
+        db: &DbConn,
+        agent_id: uuid::Uuid,
+    ) -> Result<bool, sea_orm::prelude::DbErr> {
+        match physical_agent::Entity::find_by_id(agent_id).one(db).await? {
+            Some(agent) => Ok(agent.qubit_idle == agent.qubit_count),
+            None => Err(sea_orm::prelude::DbErr::RecordNotFound(format!(
+                "Physical agent {} not found",
+                agent_id
+            ))),
+        }
+    }
+
     /// Get the physical agent by the given address (ip and port). If the agent
     /// does not exist, it will return `None`.
     pub async fn get_physical_agent_by_address(
@@ -200,6 +217,7 @@ impl PhysicalAgent {
                 }
                 if agent_qubit_count.is_some() {
                     agent.qubit_count = Set(agent_qubit_count.unwrap());
+                    agent.qubit_idle = Set(agent_qubit_count.unwrap());
                 }
                 if agent_circuit_depth.is_some() {
                     agent.circuit_depth = Set(agent_circuit_depth.unwrap());
@@ -208,6 +226,26 @@ impl PhysicalAgent {
                     agent.status = Set(agent_status.unwrap());
                 }
                 agent.update(db).await
+            }
+            None => Err(sea_orm::prelude::DbErr::RecordNotFound(format!(
+                "Physical agent {} not found",
+                agent_id
+            ))),
+        }
+    }
+
+    /// Update the physical agent status, this function is used before update
+    /// physical agent information.
+    pub async fn update_physical_agent_status(
+        db: &DbConn,
+        agent_id: uuid::Uuid,
+        agent_status: sea_orm_active_enums::PhysicalAgentStatus,
+    ) -> Result<(physical_agent::Model, PhysicalAgentStatus), sea_orm::prelude::DbErr> {
+        match physical_agent::Entity::find_by_id(agent_id).one(db).await? {
+            Some(agent) => {
+                let mut agent_act: physical_agent::ActiveModel = agent.clone().into();
+                agent_act.status = Set(agent_status);
+                Ok((agent_act.update(db).await?, agent.status))
             }
             None => Err(sea_orm::prelude::DbErr::RecordNotFound(format!(
                 "Physical agent {} not found",
