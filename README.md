@@ -118,3 +118,36 @@ kubectl delete -f emulator-server.yaml
 ```
 
 This will delete all the resources created by the previous command.
+
+## Use k8s to deploy the agent:
+
+You can use the following command to deploy the agent:
+
+```bash
+kubectl apply -f emulator-agent.yaml
+```
+
+The file include following resources:
+- emulator-agent: A pod including the agent, the agent will use the port 3003 (can not access direcyly) to listen the request.
+- emulator-agent-sv: A service to expose the agent to cluster using ClusterIP, the port is 3003.
+
+You can use the following command to delete the resources:
+
+```bash
+kubectl delete -f emulator-agent.yaml
+```
+
+You can use the following command to add the agent to the server:
+
+```bash
+# The hostname is the name of the agent service, the address (-a) is the cluster ip of the emulator-server service, you can use kubectl get servce to check it
+# You can also use the node ip and the node port to add the agent
+cargo run -- -m add-agent --agent-hostname emulator-agent-sv-1 --agent-port 3003 --agent-qubit-count 20 --agent-circuit-depth 20 -a 10.108.202.16:3000
+```
+
+You can use the following command to submit a task to the server:
+
+```bash
+# The address (-a) is the node ip and the node port of the emulator-server service
+cargo run -- -m emulate -f examples/bell.qasm -s 2000 -a 192.168.1.196:30001
+```

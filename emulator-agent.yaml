@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: emulator-agent
+  labels:
+    app: emulator-agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: emulator-agent
+  template:
+    metadata:
+      labels:
+        app: emulator-agent
+    spec:
+      containers:
+      - name: emulator-agent
+        image: ghcr.io/baqic/qasmsim-agent:main
+        ports:
+        - containerPort: 3003
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: emulator-agent-sv-1
+  labels:
+    app: emulator-agent
+spec:
+  type: ClusterIP
+  ports:
+    - name: emulator-agent 
+      port: 3003
+      targetPort: 3003
+  selector:
+    app: emulator-agent
