@@ -95,3 +95,26 @@ To generate the documentation, please use the following command:
 ```bash
 cargo doc --bins --document-private-items --no-deps
 ```
+
+## Use k8s to deploy the server
+
+You can use the following command to deploy the server:
+
+```bash
+kubectl apply -f emulator-server.yaml
+```
+
+The file include following resources:
+- emulator-server-db-secret: A config map to store the environment variables for the postgres
+- emulator-server-sched-conf: A config map to store the configuration file for the quantum scheduler, which is a json file.
+- emulator-server-db-pvc: A persistent volume claim to store the data of the postgres。
+- emulator-server: A pod including the server and the database, the database can not be accessed from outside. The server will use the port 3000 (can not access directly) to listen the request.
+- emulator-server-sv: A service to expose the emulator server to the outside using NodePort, the port is 30001.
+
+You can use the following command to delete the resources:
+
+```bash
+kubectl delete -f emulator-server.yaml
+```
+
+This will delete all the resources created by the previous command.

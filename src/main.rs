@@ -62,8 +62,7 @@ use router::{
 };
 
 fn main() {
-    let log_conf_path =
-        std::env::var("LOG_CONFIG").unwrap_or_else(|_| "/log4rs.yaml".to_owned());
+    let log_conf_path = std::env::var("LOG_CONFIG").unwrap_or_else(|_| "/log4rs.yaml".to_owned());
     log4rs::init_file(&log_conf_path, Default::default()).unwrap();
 
     // Start a thread to consume waiting tasks, and submit them to idle agents
