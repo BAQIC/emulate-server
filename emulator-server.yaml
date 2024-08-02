@@ -40,6 +40,20 @@ spec:
     requests:
       storage: 10Gi
 ---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: emulator-server-log-pvc
+  labels:
+    app: emulator-server
+spec:
+  storageClassName: nfs-client
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 1Gi
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -60,10 +74,13 @@ spec:
       - name: postgres
         image: postgres:latest
         ports:
-          - containerPort: 5432
+        - containerPort: 5432
         envFrom:
-          - configMapRef:
-                name: emulator-server-db-secret
+        - configMapRef:
+            name: emulator-server-db-secret
+        volumeMounts:
+        - name: emulator-server-pg-data
+          mountPath: /var/lib/postgresql/data
       - name: emulator-server
         image: ghcr.io/baqic/emulate-server:main
         ports:
@@ -74,10 +91,19 @@ spec:
         volumeMounts:
         - name: emulator-server-sched-conf-volume
           mountPath: /config
+        - name: emulator-server-log-data
+          mountPath: /log
       volumes:
       - name: emulator-server-sched-conf-volume
         configMap:
           name: emulator-server-sched-conf
+      - name: emulator-server-pg-data
+        persistentVolumeClaim:
+          claimName: emulator-server-db-pvc
+      - name: emulator-server-log-data
+        persistentVolumeClaim:
+          claimName: emulator-server-log-pvc
+
 ---
 apiVersion: v1
 kind: Service
@@ -90,6 +116,7 @@ spec:
   ports:
     - name: emulator-server 
       port: 3000
+      targetPort: 3000
       nodePort: 30001
   selector:
     app: emulator-server 

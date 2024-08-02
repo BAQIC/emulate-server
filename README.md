@@ -119,6 +119,8 @@ kubectl delete -f emulator-server.yaml
 
 This will delete all the resources created by the previous command.
 
+You can use `kubectl` get the pv of emulator server log, then you can go to that path to check the log file.
+
 ## Use k8s to deploy the agent:
 
 You can use the following command to deploy the agent:
