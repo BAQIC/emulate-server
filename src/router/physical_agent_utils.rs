@@ -23,7 +23,7 @@ use uuid::Uuid;
 /// The struct that represents the status of the agent. It can be either
 /// `running` or `down`. This struct is used for the user to update the status
 /// of the agent.
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum AgentStatus {
     #[serde(rename = "running")]
     Running,
@@ -83,7 +83,7 @@ pub struct AgentInfo {
 /// - `circuit_depth`: The circuit depth of the agent can run, optional.
 /// - `status`: The status of the agent, optional. The `status` field is an enum
 ///   of `AgentStatus` which can be either `running` or `down`.
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct AgentInfoUpdate {
     pub id: Uuid,
     #[serde(default, deserialize_with = "empty_string_as_none")]

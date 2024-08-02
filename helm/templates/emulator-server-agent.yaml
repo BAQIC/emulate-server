@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-agent-1
+  labels:
+    app: {{ .Release.Name }}-agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}-agent
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}-agent
+    spec:
+      containers:
+      - name: {{ .Values.emulatorServerAgent.image.name }}
+        image: {{ .Values.emulatorServerAgent.image.repository }}:{{ .Values.emulatorServerAgent.image.tag }}
+        ports:
+        - containerPort: {{ .Values.emulatorServerAgent.containerPort }}

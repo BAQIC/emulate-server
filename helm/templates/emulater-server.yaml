@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    app: {{ .Release.Name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}
+    spec:
+      containers:
+      - name: {{ .Values.emulatorServerDb.image.name }}
+        image: {{ .Values.emulatorServerDb.image.repository }}:{{ .Values.emulatorServerDb.image.tag }}
+        ports:
+        - containerPort: 5432
+        envFrom:
+        - configMapRef:
+            name: {{ .Release.Name }}-db-secret
+        volumeMounts:
+        # if error is Operation not permitted, please follow step 1: https://github.com/kubernetes/kubernetes/issues/54601#issuecomment-346554420 
+        - name: {{ .Release.Name }}-pg-data
+          mountPath: /var/lib/postgresql/data
+      - name: {{ .Values.emulatorServer.image.name }}
+        image: {{ .Values.emulatorServer.image.repository }}:{{ .Values.emulatorServer.image.tag }}
+        ports:
+        - containerPort: {{ .Values.emulatorServer.containerPort }}
+        env:
+        - name: QSCHED_CONFIG
+          value: {{ .Values.emulatorServer.env.qschedConfigPath }}/{{ .Values.emulatorServer.env.qschedConfigName }}
+        volumeMounts:
+        - name: {{ .Release.Name }}-sched-conf-volume
+          mountPath: {{ .Values.emulatorServer.env.qschedConfigPath }}
+        - name: {{ .Release.Name }}-log-data
+          mountPath: /log
+      volumes:
+      - name: {{ .Release.Name }}-sched-conf-volume
+        configMap:
+          name: {{ .Release.Name }}-sched-conf
+      - name: {{ .Release.Name }}-pg-data
+        persistentVolumeClaim:
+          claimName: {{ .Release.Name }}-db-pvc
+      - name: {{ .Release.Name }}-log-data
+        persistentVolumeClaim:
+          claimName: {{ .Release.Name }}-log-pvc
+

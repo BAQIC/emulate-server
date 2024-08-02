@@ -62,8 +62,7 @@ use router::{
 };
 
 fn main() {
-    let log_conf_path =
-        std::env::var("LOG_CONFIG").unwrap_or_else(|_| "/log4rs.yaml".to_owned());
+    let log_conf_path = std::env::var("LOG_CONFIG").unwrap_or_else(|_| "/log4rs.yaml".to_owned());
     log4rs::init_file(&log_conf_path, Default::default()).unwrap();
 
     // Start a thread to consume waiting tasks, and submit them to idle agents
@@ -99,7 +98,7 @@ fn main() {
                     .await
                     .unwrap();
 
-                // todo: if the device is idle, run one task concurrently
+                // TODO: if the device is idle, run one task concurrently
                 for waiting_task in waiting_tasks {
                     match service::physical_agent::PhysicalAgent::get_least_available_physical_agent(
                         &db,

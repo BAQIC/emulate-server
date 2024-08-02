@@ -4,5 +4,5 @@
     "listen_ip": "0.0.0.0",
     "listen_port": 3000,
     "db_url": "postgres://quantum-emulator:quantum-emulator@127.0.0.1:5433/quantum-emulator",
-    "agent_file": ""
+    "agent_file": "config/agents.json"
 }

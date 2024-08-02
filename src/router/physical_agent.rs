@@ -311,7 +311,6 @@ pub async fn get_physical_agent_by_address(
 }
 
 /// Internal function to update the physical agent with the given id
-/// TODO: update the physical agent after tasks are done
 async fn _update_physical_agent(
     state: ServerState,
     Form(query_message): Form<AgentInfoUpdate>,
@@ -323,35 +322,81 @@ async fn _update_physical_agent(
 
     let db = &state.db;
 
-    match service::physical_agent::PhysicalAgent::update_physical_agent(
+    match service::physical_agent::PhysicalAgent::update_physical_agent_status(
         db,
         query_message.id,
-        query_message.ip,
-        query_message.port.map(|x| x as i32),
-        query_message.qubit_count.map(|x| x as i32),
-        query_message.circuit_depth.map(|x| x as i32),
-        query_message.status.map(|x| match x {
-            AgentStatus::Running => sea_orm_active_enums::PhysicalAgentStatus::Running,
-            AgentStatus::Down => sea_orm_active_enums::PhysicalAgentStatus::Down,
-        }),
+        sea_orm_active_enums::PhysicalAgentStatus::Down,
     )
     .await
     {
-        Ok(agent) => {
-            info!("Update physical agent successfully");
-            (
-                StatusCode::OK,
-                Json(json!({
-                    "agent": agent,
-                })),
+        Ok((_, ori_status)) => {
+            info!("Update physical agent status to down before update agent information");
+            while !service::physical_agent::PhysicalAgent::check_physical_agent_idle(
+                db,
+                query_message.id,
             )
+            .await
+            .unwrap()
+            {
+                info!(
+                    "Waiting for the physical agent {} to be idle",
+                    query_message.id
+                );
+                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+            }
+
+            // update the agent information after the agent is idle
+            match service::physical_agent::PhysicalAgent::update_physical_agent(
+                db,
+                query_message.id,
+                query_message.ip,
+                query_message.port.map(|x| x as i32),
+                query_message.qubit_count.map(|x| x as i32),
+                query_message.circuit_depth.map(|x| x as i32),
+                query_message.status.clone().map(|x| match x {
+                    AgentStatus::Running => sea_orm_active_enums::PhysicalAgentStatus::Running,
+                    AgentStatus::Down => sea_orm_active_enums::PhysicalAgentStatus::Down,
+                }),
+            )
+            .await
+            {
+                Ok(agent) => {
+                    info!("Update physical agent successfully");
+
+                    // if we do not update the agent information by this api, we restore the agent
+                    // status to the original status
+                    if query_message.status.is_none() {
+                        service::physical_agent::PhysicalAgent::update_physical_agent_status(
+                            db,
+                            query_message.id,
+                            ori_status,
+                        )
+                        .await
+                        .unwrap();
+                    }
+
+                    (
+                        StatusCode::OK,
+                        Json(json!({
+                            "agent": agent,
+                        })),
+                    )
+                }
+                Err(err) => {
+                    error!("Update physical agent failed: {}", err);
+                    (
+                        StatusCode::BAD_REQUEST,
+                        Json(json!({"Error": format!("{}", err)})),
+                    )
+                }
+            }
         }
         Err(err) => {
-            error!("Update physical agent failed: {}", err);
-            (
+            error!("Update physical agent status to down failed: {}", err);
+            return (
                 StatusCode::BAD_REQUEST,
                 Json(json!({"Error": format!("{}", err)})),
-            )
+            );
         }
     }
 }
