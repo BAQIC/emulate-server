@@ -1,0 +1,46 @@
+emulatorServerDb:
+  storage:
+    className: nfs-client
+    capacity: 10Gi
+  image:
+    name: postgres
+    repository: postgres
+    tag: latest
+  env:
+    postgresDb: quantum-emulator
+    postgresUser: quantum-emulator
+    postgresPassword: quantum-emulator
+  
+emulatorServer:
+  image:
+    name: emulator-server
+    repository: ghcr.io/baqic/emulate-server
+    tag: main
+  storage:
+    className: nfs-client
+    capacity: 1Gi
+  containerPort: 3000
+  env:
+    schedMinGran: 200
+    schedMinDepth: 10
+    qschedConfigPath: /config
+    qschedConfigName: qsched.json
+  service:
+    type: NodePort
+    ports:
+      name: emulator-server
+      port: 3000
+      nodePort: 30001
+
+emulatorServerAgent:
+  image:
+    name: qasmsim-agent
+    repository: ghcr.io/baqic/qasmsim-agent
+    tag: main
+  containerPort: 3003
+  service:
+    type: ClusterIP
+    ports:
+      name: emulator-agent
+      port: 3003
+      targetPort: 3003

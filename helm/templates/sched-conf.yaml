@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-sched-conf
+  labels:
+    app: {{ .Release.Name }}
+data:
+  {{ .Values.emulatorServer.env.qschedConfigName }}: |
+    {
+        "sched_min_gran": {{ .Values.emulatorServer.env.schedMinGran }},
+        "sched_min_depth": {{ .Values.emulatorServer.env.schedMinDepth }},
+        "listen_ip": "0.0.0.0",
+        "listen_port": {{ .Values.emulatorServer.containerPort }},
+        "db_url": "postgres://{{ .Values.emulatorServerDb.env.postgresUser }}:{{ .Values.emulatorServerDb.env.postgresPassword }}@localhost:5432/{{ .Values.emulatorServerDb.env.postgresDb }}",
+        "agent_file": ""
+    }

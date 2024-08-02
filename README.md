@@ -153,3 +153,22 @@ You can use the following command to submit a task to the server:
 # The address (-a) is the node ip and the node port of the emulator-server service
 cargo run -- -m emulate -f examples/bell.qasm -s 2000 -a 192.168.1.196:30001
 ```
+
+## Use helm to deploy the server
+
+You can use the following command to deploy the server:
+
+```bash
+helm install emulator-server helm
+```
+
+This will deploy the server, database, and one agent. The server will use NodePort to expose the service to the outside. The agent will use ClusterIP to expose the service to the cluster. You can access the server using the `node_ip:node_port`.
+
+For example:
+```bash
+# The address (-a) is the node ip and the node port of the emulator-server service
+# The hostname is the name of the agent service
+cargo run -- -m add-agent --agent-hostname emulator-server-agent-sv-1 --agent-port 3003 --agent-qubit-count 20 --agent-circuit-depth 20 -a 192.168.1.196:30001
+
+cargo run -- -m emulate -f examples/bell.qasm -s 2000 -a 192.168.1.196:30001
+```
