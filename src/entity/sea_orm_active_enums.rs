@@ -34,6 +34,18 @@ pub enum TaskActiveStatus {
     Waiting,
 }
 #[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
+#[sea_orm(rs_type = "String", db_type = "Enum", enum_name = "task_mode")]
+pub enum TaskMode {
+    #[sea_orm(string_value = "aggregation")]
+    Aggregation,
+    #[sea_orm(string_value = "max")]
+    Max,
+    #[sea_orm(string_value = "min")]
+    Min,
+    #[sea_orm(string_value = "sequence")]
+    Sequence,
+}
+#[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
 #[sea_orm(rs_type = "String", db_type = "Enum", enum_name = "task_status")]
 pub enum TaskStatus {
     #[sea_orm(string_value = "failed")]

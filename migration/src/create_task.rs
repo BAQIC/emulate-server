@@ -16,6 +16,7 @@ pub enum Task {
     Qubits,
     Shots,
     Depth,
+    Mode,
     Status,
     CreatedTime,
     UpdatedTime,
@@ -28,6 +29,15 @@ pub enum TaskStatus {
     Failed,
 }
 
+#[derive(DeriveIden, EnumIter)]
+pub enum TaskMode {
+    Table,
+    Sequence,
+    Aggregation,
+    Min,
+    Max,
+}
+
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
@@ -36,6 +46,14 @@ impl MigrationTrait for Migration {
                 Type::create()
                     .as_enum(TaskStatus::Table)
                     .values(TaskStatus::iter().skip(1))
+                    .to_owned(),
+            )
+            .await?;
+        manager
+            .create_type(
+                Type::create()
+                    .as_enum(TaskMode::Table)
+                    .values(TaskMode::iter().skip(1))
                     .to_owned(),
             )
             .await?;
@@ -60,6 +78,11 @@ impl MigrationTrait for Migration {
                         ColumnDef::new(Task::Status)
                             .enumeration(TaskStatus::Table, TaskStatus::iter().skip(1))
                             .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(Task::Mode)
+                            .enumeration(TaskMode::Table, TaskMode::iter().skip(1))
+                            .null(),
                     )
                     .col(ColumnDef::new(Task::CreatedTime).timestamp().not_null())
                     .col(ColumnDef::new(Task::UpdatedTime).timestamp().not_null())

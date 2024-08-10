@@ -17,7 +17,31 @@ use reqwest::Response;
 use sea_orm::DbConn;
 use serde::Deserialize;
 use serde_json::{json, map::Entry, Value};
+use std::fmt;
 use uuid::Uuid;
+
+#[derive(Deserialize, Debug)]
+pub enum TaskMode {
+    #[serde(rename = "sequence")]
+    Sequence,
+    #[serde(rename = "aggregation")]
+    Aggregation,
+    #[serde(rename = "max")]
+    Max,
+    #[serde(rename = "min")]
+    Min,
+}
+
+impl fmt::Display for TaskMode {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            TaskMode::Sequence => write!(f, "sequence"),
+            TaskMode::Aggregation => write!(f, "aggregation"),
+            TaskMode::Max => write!(f, "max"),
+            TaskMode::Min => write!(f, "min"),
+        }
+    }
+}
 
 /// ## Emulate message
 /// The emulate message is used to submit a task to the server. That means the
@@ -33,6 +57,7 @@ pub struct EmulateMessage {
     qubits: usize,
     depth: usize,
     shots: usize,
+    mode: Option<TaskMode>,
 }
 
 /// ## Task ID
@@ -50,21 +75,34 @@ pub struct TaskID {
 /// values will be added together. If the key does not exist in the previous
 /// result, it will be added to the previous result.
 fn merge_and_add(v1: &mut Value, v2: &Value) {
-    let v1_memory_map = v1.get_mut("Memory").unwrap().as_object_mut().unwrap();
-    let v2_memory_map = v2.get("Memory").unwrap().as_object().unwrap();
+    let v1_memory = v1.get_mut("Memory").unwrap();
+    let v2_memory = v2.get("Memory").unwrap();
 
-    for (k, v2_value) in v2_memory_map {
-        match v1_memory_map.entry(k.clone()) {
-            Entry::Vacant(entry) => {
-                entry.insert(v2_value.clone());
-            }
-            Entry::Occupied(mut entry) => {
-                let v1_value = entry.get_mut();
-                if let (Some(v1_num), Some(v2_num)) = (v1_value.as_i64(), v2_value.as_i64()) {
-                    *v1_value = Value::from(v1_num + v2_num);
+    if v1_memory.is_object() && v2_memory.is_object() {
+        let v1_memory_map = v1_memory.as_object_mut().unwrap();
+        let v2_memory_map = v2_memory.as_object().unwrap();
+
+        for (k, v2_value) in v2_memory_map {
+            match v1_memory_map.entry(k.clone()) {
+                Entry::Vacant(entry) => {
+                    entry.insert(v2_value.clone());
+                }
+                Entry::Occupied(mut entry) => {
+                    let v1_value = entry.get_mut();
+                    if let (Some(v1_num), Some(v2_num)) = (v1_value.as_i64(), v2_value.as_i64()) {
+                        *v1_value = Value::from(v1_num + v2_num);
+                    }
                 }
             }
         }
+    } else if v1_memory.is_array() && v2_memory.is_array() {
+        let v1_memory_array = v1_memory.as_array_mut().unwrap();
+        let v2_memory_array = v2_memory.as_array().unwrap();
+
+        v1_memory_array.extend(v2_memory_array.iter().cloned());
+    } else {
+        error!("Merge simulation results failed: Memory field is not object or array");
+        panic!("Merge simulation results failed: Memory field is not object or array");
     }
 }
 
@@ -80,8 +118,17 @@ fn merge_and_add(v1: &mut Value, v2: &Value) {
 ///       "10": 1000,
 ///       "11": 1000
 /// }
-async fn invoke_agent(address: &str, qasm: &str, shots: i32) -> Result<Response, reqwest::Error> {
-    let body = [("qasm", qasm.to_string()), ("shots", shots.to_string())];
+async fn invoke_agent(
+    address: &str,
+    qasm: &str,
+    shots: i32,
+    mode: Option<String>,
+) -> Result<Response, reqwest::Error> {
+    let mut body: Vec<(&str, String)> =
+        vec![("qasm", qasm.to_string()), ("shots", shots.to_string())];
+    if mode.is_some() {
+        body.push(("mode", mode.unwrap()));
+    }
 
     reqwest::Client::new()
         .post(address)
@@ -113,6 +160,12 @@ async fn _submit(
             shots: emulate_message.shots as i32,
             exec_shots: 0,
             v_exec_shots: min_vexec_shots as i32,
+            mode: emulate_message.mode.map(|m| match m {
+                TaskMode::Sequence => sea_orm_active_enums::TaskMode::Sequence,
+                TaskMode::Aggregation => sea_orm_active_enums::TaskMode::Aggregation,
+                TaskMode::Max => sea_orm_active_enums::TaskMode::Max,
+                TaskMode::Min => sea_orm_active_enums::TaskMode::Min,
+            }),
             status: sea_orm_active_enums::TaskActiveStatus::Waiting,
             created_time: chrono::Utc::now().naive_utc(),
             updated_time: chrono::Utc::now().naive_utc(),
@@ -193,6 +246,12 @@ pub async fn consume_task(
         &format!("http://{}:{}/submit", agent.ip, agent.port),
         &task.source,
         exec_shots,
+        task.mode.clone().map(|m| match m {
+            sea_orm_active_enums::TaskMode::Sequence => TaskMode::Sequence.to_string(),
+            sea_orm_active_enums::TaskMode::Aggregation => TaskMode::Aggregation.to_string(),
+            sea_orm_active_enums::TaskMode::Max => TaskMode::Max.to_string(),
+            sea_orm_active_enums::TaskMode::Min => TaskMode::Min.to_string(),
+        }),
     )
     .await;
 
@@ -232,6 +291,7 @@ pub async fn consume_task(
                     qubits: task.qubits,
                     depth: task.depth,
                     shots: task.shots,
+                    mode: task.mode,
                     status: sea_orm_active_enums::TaskStatus::Succeeded,
                     created_time: task.created_time,
                     updated_time: task.updated_time,
@@ -288,6 +348,7 @@ pub async fn consume_task(
                 qubits: task.qubits,
                 depth: task.depth,
                 shots: task.shots,
+                mode: task.mode,
                 status: sea_orm_active_enums::TaskStatus::Failed,
                 created_time: task.created_time,
                 updated_time: task.updated_time,

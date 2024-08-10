@@ -35,6 +35,7 @@ impl TaskActive {
                         exec_shots: ActiveValue::set(data.exec_shots.to_owned()),
                         v_exec_shots: ActiveValue::set(data.v_exec_shots.to_owned()),
                         status: ActiveValue::set(data.status.to_owned()),
+                        mode: ActiveValue::set(data.mode.to_owned()),
                         created_time: ActiveValue::set(data.created_time.to_owned()),
                         updated_time: ActiveValue::set(data.updated_time.to_owned()),
                     }

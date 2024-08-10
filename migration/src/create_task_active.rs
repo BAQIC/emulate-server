@@ -1,3 +1,4 @@
+use super::create_task::TaskMode;
 use extension::postgres::Type;
 use sea_orm::{EnumIter, Iterable};
 use sea_orm_migration::prelude::*;
@@ -16,6 +17,7 @@ pub enum TaskActive {
     ExecShots,
     VExecShots,
     Depth,
+    Mode,
     Status,
     CreatedTime,
     UpdatedTime,
@@ -62,6 +64,11 @@ impl MigrationTrait for Migration {
                         ColumnDef::new(TaskActive::Status)
                             .enumeration(TaskActiveStatus::Table, TaskActiveStatus::iter().skip(1))
                             .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(TaskActive::Mode)
+                            .enumeration(TaskMode::Table, TaskMode::iter().skip(1))
+                            .null(),
                     )
                     .col(
                         ColumnDef::new(TaskActive::CreatedTime)
