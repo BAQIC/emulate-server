@@ -117,7 +117,7 @@ pub async fn add_physical_agent(
     match request.headers().get(header::CONTENT_TYPE) {
         Some(content_type) => match content_type.to_str().unwrap() {
             "application/json" => {
-                let Form(message) = request.extract().await.unwrap();
+                let Json::<AgentInfo>(message) = request.extract().await.unwrap();
                 _add_physical_agent(state, Form(message)).await
             }
             "application/x-www-form-urlencoded" => {
@@ -413,7 +413,7 @@ pub async fn update_physical_agent(
     match request.headers().get(header::CONTENT_TYPE) {
         Some(content_type) => match content_type.to_str().unwrap() {
             "application/json" => {
-                let Form(message) = request.extract().await.unwrap();
+                let Json::<AgentInfoUpdate>(message) = request.extract().await.unwrap();
                 _update_physical_agent(state, Form(message)).await
             }
             "application/x-www-form-urlencoded" => {
