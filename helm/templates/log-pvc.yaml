@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Release.Name }}-log-pvc
+  labels:
+    app: {{ .Release.Name }}
+spec:
+  storageClassName: {{ .Values.emulatorServer.storage.className}}
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: {{ .Values.emulatorServer.storage.capacity}}

@@ -74,6 +74,8 @@ cd migration
 cargo run -- -u database_url fresh
 ```
 
+**NOTE:** This operation may be dangerous, please make sure you have a backup of the database.
+
 ### Generate a new entity from the database
 
 To generate a new entity from the database, please use the following command:
@@ -92,4 +94,81 @@ To generate the documentation, please use the following command:
 
 ```bash
 cargo doc --bins --document-private-items --no-deps
+```
+
+## Use k8s to deploy the server
+
+You can use the following command to deploy the server:
+
+```bash
+kubectl apply -f emulator-server.yaml
+```
+
+The file include following resources:
+- emulator-server-db-secret: A config map to store the environment variables for the postgres
+- emulator-server-sched-conf: A config map to store the configuration file for the quantum scheduler, which is a json file.
+- emulator-server-db-pvc: A persistent volume claim to store the data of the postgres。
+- emulator-server: A pod including the server and the database, the database can not be accessed from outside. The server will use the port 3000 (can not access directly) to listen the request.
+- emulator-server-sv: A service to expose the emulator server to the outside using NodePort, the port is 30001.
+
+You can use the following command to delete the resources:
+
+```bash
+kubectl delete -f emulator-server.yaml
+```
+
+This will delete all the resources created by the previous command.
+
+You can use `kubectl` get the pv of emulator server log, then you can go to that path to check the log file.
+
+## Use k8s to deploy the agent:
+
+You can use the following command to deploy the agent:
+
+```bash
+kubectl apply -f emulator-agent.yaml
+```
+
+The file include following resources:
+- emulator-agent: A pod including the agent, the agent will use the port 3003 (can not access direcyly) to listen the request.
+- emulator-agent-sv: A service to expose the agent to cluster using ClusterIP, the port is 3003.
+
+You can use the following command to delete the resources:
+
+```bash
+kubectl delete -f emulator-agent.yaml
+```
+
+You can use the following command to add the agent to the server:
+
+```bash
+# The hostname is the name of the agent service, the address (-a) is the cluster ip of the emulator-server service, you can use kubectl get servce to check it
+# You can also use the node ip and the node port to add the agent
+cargo run -- -m add-agent --agent-hostname emulator-agent-sv-1 --agent-port 3003 --agent-qubit-count 20 --agent-circuit-depth 20 -a 10.108.202.16:3000
+```
+
+You can use the following command to submit a task to the server:
+
+```bash
+# The address (-a) is the node ip and the node port of the emulator-server service
+cargo run -- -m emulate -f examples/bell.qasm -s 2000 -a 192.168.1.196:30001
+```
+
+## Use helm to deploy the server
+
+You can use the following command to deploy the server:
+
+```bash
+helm install emulator-server helm
+```
+
+This will deploy the server, database, and one agent. The server will use NodePort to expose the service to the outside. The agent will use ClusterIP to expose the service to the cluster. You can access the server using the `node_ip:node_port`.
+
+For example:
+```bash
+# The address (-a) is the node ip and the node port of the emulator-server service
+# The hostname is the name of the agent service
+cargo run -- -m add-agent --agent-hostname emulator-server-agent-sv-1 --agent-port 3003 --agent-qubit-count 20 --agent-circuit-depth 20 -a 192.168.1.196:30001
+
+cargo run -- -m emulate -f examples/bell.qasm -s 2000 -a 192.168.1.196:30001
 ```
