@@ -12,10 +12,12 @@ pub enum Task {
     Table,
     Id,
     Source,
+    Vars,
     Result,
     Qubits,
     Shots,
     Depth,
+    Mode,
     Status,
     CreatedTime,
     UpdatedTime,
@@ -28,6 +30,16 @@ pub enum TaskStatus {
     Failed,
 }
 
+#[derive(DeriveIden, EnumIter)]
+pub enum TaskMode {
+    Table,
+    Sequence,
+    Aggregation,
+    Min,
+    Max,
+    Expectation,
+}
+
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
@@ -36,6 +48,14 @@ impl MigrationTrait for Migration {
                 Type::create()
                     .as_enum(TaskStatus::Table)
                     .values(TaskStatus::iter().skip(1))
+                    .to_owned(),
+            )
+            .await?;
+        manager
+            .create_type(
+                Type::create()
+                    .as_enum(TaskMode::Table)
+                    .values(TaskMode::iter().skip(1))
                     .to_owned(),
             )
             .await?;
@@ -52,6 +72,7 @@ impl MigrationTrait for Migration {
                             .unique_key(),
                     )
                     .col(ColumnDef::new(Task::Source).string().not_null())
+                    .col(ColumnDef::new(Task::Vars).string().null())
                     .col(ColumnDef::new(Task::Result).string().not_null())
                     .col(ColumnDef::new(Task::Qubits).unsigned().not_null())
                     .col(ColumnDef::new(Task::Shots).unsigned().not_null())
@@ -60,6 +81,11 @@ impl MigrationTrait for Migration {
                         ColumnDef::new(Task::Status)
                             .enumeration(TaskStatus::Table, TaskStatus::iter().skip(1))
                             .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(Task::Mode)
+                            .enumeration(TaskMode::Table, TaskMode::iter().skip(1))
+                            .null(),
                     )
                     .col(ColumnDef::new(Task::CreatedTime).timestamp().not_null())
                     .col(ColumnDef::new(Task::UpdatedTime).timestamp().not_null())

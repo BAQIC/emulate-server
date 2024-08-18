@@ -12,11 +12,13 @@ impl Task {
         task::ActiveModel {
             id: ActiveValue::set(data.id.to_owned()),
             source: ActiveValue::set(data.source.to_owned()),
+            vars: ActiveValue::set(data.vars.to_owned()),
             result: ActiveValue::set(data.result.to_owned()),
             qubits: ActiveValue::set(data.qubits.to_owned()),
             depth: ActiveValue::set(data.depth.to_owned()),
             shots: ActiveValue::set(data.shots.to_owned()),
             status: ActiveValue::set(data.status.to_owned()),
+            mode: ActiveValue::set(data.mode.to_owned()),
             created_time: ActiveValue::set(data.created_time.to_owned()),
             updated_time: ActiveValue::set(data.updated_time.to_owned()),
         }

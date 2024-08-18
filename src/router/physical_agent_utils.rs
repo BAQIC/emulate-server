@@ -114,7 +114,7 @@ pub struct AgentAddress {
 
 /// The function that converts an empty string to `None` when deserializing the
 /// optional field.
-fn empty_string_as_none<'de, D, T>(de: D) -> Result<Option<T>, D::Error>
+pub fn empty_string_as_none<'de, D, T>(de: D) -> Result<Option<T>, D::Error>
 where
     D: Deserializer<'de>,
     T: FromStr,
