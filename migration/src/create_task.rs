@@ -12,6 +12,7 @@ pub enum Task {
     Table,
     Id,
     Source,
+    Vars,
     Result,
     Qubits,
     Shots,
@@ -36,7 +37,7 @@ pub enum TaskMode {
     Aggregation,
     Min,
     Max,
-    Expectation
+    Expectation,
 }
 
 #[async_trait::async_trait]
@@ -71,6 +72,7 @@ impl MigrationTrait for Migration {
                             .unique_key(),
                     )
                     .col(ColumnDef::new(Task::Source).string().not_null())
+                    .col(ColumnDef::new(Task::Vars).string().null())
                     .col(ColumnDef::new(Task::Result).string().not_null())
                     .col(ColumnDef::new(Task::Qubits).unsigned().not_null())
                     .col(ColumnDef::new(Task::Shots).unsigned().not_null())

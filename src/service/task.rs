@@ -12,6 +12,7 @@ impl Task {
         task::ActiveModel {
             id: ActiveValue::set(data.id.to_owned()),
             source: ActiveValue::set(data.source.to_owned()),
+            vars: ActiveValue::set(data.vars.to_owned()),
             result: ActiveValue::set(data.result.to_owned()),
             qubits: ActiveValue::set(data.qubits.to_owned()),
             depth: ActiveValue::set(data.depth.to_owned()),

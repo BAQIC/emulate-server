@@ -61,6 +61,7 @@ pub struct EmulateMessage {
     depth: usize,
     shots: usize,
     mode: Option<TaskMode>,
+    vars: Option<String>,
 }
 
 /// ## Task ID
@@ -126,11 +127,15 @@ async fn invoke_agent(
     qasm: &str,
     shots: i32,
     mode: Option<String>,
+    vars: Option<String>,
 ) -> Result<Response, reqwest::Error> {
     let mut body: Vec<(&str, String)> =
         vec![("qasm", qasm.to_string()), ("shots", shots.to_string())];
     if mode.is_some() {
         body.push(("mode", mode.unwrap()));
+    }
+    if vars.is_some() {
+        body.push(("vars", vars.unwrap()));
     }
 
     reqwest::Client::new()
@@ -157,6 +162,7 @@ async fn _submit(
         entity::task_active::Model {
             id: uuid::Uuid::new_v4(),
             source: emulate_message.code.clone(),
+            vars: emulate_message.vars,
             result: None,
             qubits: emulate_message.qubits as i32,
             depth: emulate_message.depth as i32,
@@ -257,6 +263,7 @@ pub async fn consume_task(
             sea_orm_active_enums::TaskMode::Min => TaskMode::Min.to_string(),
             sea_orm_active_enums::TaskMode::Expectation => TaskMode::Expectation.to_string(),
         }),
+        task.vars.clone(),
     )
     .await;
 
@@ -268,7 +275,7 @@ pub async fn consume_task(
     .await
     .unwrap();
 
-    if result.is_ok() {
+    if result.is_ok() && result.as_ref().unwrap().status() == 200 {
         let task_result = if task.result.is_none() {
             // if the task is run for the first time
             result.unwrap().json::<Value>().await.unwrap()
@@ -292,6 +299,7 @@ pub async fn consume_task(
                 entity::task::Model {
                     id: task.id,
                     source: task.source,
+                    vars: task.vars,
                     result: serde_json::to_string_pretty(&task_result).unwrap(),
                     qubits: task.qubits,
                     depth: task.depth,
@@ -346,9 +354,11 @@ pub async fn consume_task(
             entity::task::Model {
                 id: task.id,
                 source: task.source,
-                result: serde_json::to_string_pretty(
-                    &json!({"Error": format!("{}", result.unwrap_err())}),
-                )
+                vars: task.vars,
+                result: serde_json::to_string_pretty(&json!({"Error": format!("{}", match result {
+                    Ok(res) => res.text().await.unwrap(),
+                    Err(err) => format!("{}", err)
+                })}))
                 .unwrap(),
                 qubits: task.qubits,
                 depth: task.depth,

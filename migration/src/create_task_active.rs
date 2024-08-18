@@ -11,6 +11,7 @@ pub enum TaskActive {
     Table,
     Id,
     Source,
+    Vars,
     Result,
     Qubits,
     Shots,
@@ -54,6 +55,7 @@ impl MigrationTrait for Migration {
                             .unique_key(),
                     )
                     .col(ColumnDef::new(TaskActive::Source).string().not_null())
+                    .col(ColumnDef::new(TaskActive::Vars).string().null())
                     .col(ColumnDef::new(TaskActive::Result).string().null())
                     .col(ColumnDef::new(TaskActive::Qubits).unsigned().not_null())
                     .col(ColumnDef::new(TaskActive::Shots).unsigned().not_null())
