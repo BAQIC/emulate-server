@@ -36,6 +36,7 @@ pub enum TaskMode {
     Aggregation,
     Min,
     Max,
+    Expectation
 }
 
 #[async_trait::async_trait]

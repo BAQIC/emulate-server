@@ -30,6 +30,8 @@ pub enum TaskMode {
     Max,
     #[serde(rename = "min")]
     Min,
+    #[serde(rename = "expectation")]
+    Expectation,
 }
 
 impl fmt::Display for TaskMode {
@@ -39,6 +41,7 @@ impl fmt::Display for TaskMode {
             TaskMode::Aggregation => write!(f, "aggregation"),
             TaskMode::Max => write!(f, "max"),
             TaskMode::Min => write!(f, "min"),
+            TaskMode::Expectation => write!(f, "expectation"),
         }
     }
 }
@@ -75,8 +78,8 @@ pub struct TaskID {
 /// values will be added together. If the key does not exist in the previous
 /// result, it will be added to the previous result.
 fn merge_and_add(v1: &mut Value, v2: &Value) {
-    let v1_memory = v1.get_mut("Memory").unwrap();
-    let v2_memory = v2.get("Memory").unwrap();
+    let v1_memory = v1.get_mut("Result").unwrap();
+    let v2_memory = v2.get("Result").unwrap();
 
     if v1_memory.is_object() && v2_memory.is_object() {
         let v1_memory_map = v1_memory.as_object_mut().unwrap();
@@ -165,6 +168,7 @@ async fn _submit(
                 TaskMode::Aggregation => sea_orm_active_enums::TaskMode::Aggregation,
                 TaskMode::Max => sea_orm_active_enums::TaskMode::Max,
                 TaskMode::Min => sea_orm_active_enums::TaskMode::Min,
+                TaskMode::Expectation => sea_orm_active_enums::TaskMode::Expectation,
             }),
             status: sea_orm_active_enums::TaskActiveStatus::Waiting,
             created_time: chrono::Utc::now().naive_utc(),
@@ -251,6 +255,7 @@ pub async fn consume_task(
             sea_orm_active_enums::TaskMode::Aggregation => TaskMode::Aggregation.to_string(),
             sea_orm_active_enums::TaskMode::Max => TaskMode::Max.to_string(),
             sea_orm_active_enums::TaskMode::Min => TaskMode::Min.to_string(),
+            sea_orm_active_enums::TaskMode::Expectation => TaskMode::Expectation.to_string(),
         }),
     )
     .await;
